@@ -1,0 +1,49 @@
+public class Photos
+{
+    public int Photo_ID { get; set; }
+    public int Student_ID { get; set; }
+    public string Path { get; set; }
+}
+
+public class Institutes
+{
+    public int Institute_ID { get; set; }
+    public string Name { get; set; }
+}
+
+public class Likes
+{
+    public int Like_ID { get; set; }
+    public int FromStudent_ID { get; set; }
+    public int ToStudent_ID { get; set; }
+    public DateTime Date { get; set; }
+}
+
+public class Messages
+{
+    public int Message_ID { get; set; }
+    public int FromStudent_ID { get; set; }
+    public int ToStudent_ID { get; set; }
+    public string Text { get; set; }
+    public DateTime Date { get; set; }
+}
+
+public class Students
+{
+    public int Student_ID { get; set; }
+    public string Name { get; set; }
+    public int Year { get; set; }
+    public int Institute_ID { get; set; }
+    public string Description { get; set; }
+    public string TelegramLink { get; set; }
+    public int User_ID { get; set; }
+}
+
+public class Users
+{
+    public int User_ID { get; set; }
+    public long Chat_ID { get; set; }
+    public long StudentCardNumber { get; set; }
+    public bool HasAccess { get; set; }
+    public DateTime RegistrationDate { get; set; }
+}
