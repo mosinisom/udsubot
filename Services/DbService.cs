@@ -1,33 +1,26 @@
-using Npgsql;
+using Microsoft.EntityFrameworkCore;
 
 public class DbService
 {
-    IConfiguration _cfg = null;
-    ILogger<DbService> _log = null;
-    public DbService(IConfiguration cfg, ILogger<DbService> log)
+    private readonly DataContext _context;
+
+    public DbService(DataContext context)
     {
-        _cfg = cfg;
-        _log = log;
+        _context = context;
     }
 
-    NpgsqlConnection GetConnection()
+    public async Task<List<Users>> GetUsersAsync()
     {
-        var connString = _cfg.GetConnectionString("ConnStr");
-        var conn = new NpgsqlConnection(connString);
-        return conn;
+        return await _context.Users.ToListAsync();
     }
 
-    public async Task<int> GetCountOfUsers()
+    public async Task<Users?> GetUserByChatIdAsync(long chatId)
     {
-        var conn = GetConnection();
-        await conn.OpenAsync();
-        var cmd = new NpgsqlCommand("select count(*) from users", conn);
-        var result = await cmd.ExecuteScalarAsync();
-        await conn.CloseAsync();
-        return Convert.ToInt32(result);
+        return await _context.
+            Users.FirstOrDefaultAsync(u => u.Chat_ID == chatId);
     }
 
-    // get user by chat_id
+
+
     
-
 }
