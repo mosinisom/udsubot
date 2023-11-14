@@ -12,7 +12,9 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var dbService = scope.ServiceProvider.GetRequiredService<DbService>();
-    var user = await dbService.GetUserByChatIdAsync(1001);
+    await dbService.AddUser(123456789);
+    var user = await dbService.GetUserByChatId(123456789);
+
     Console.WriteLine(user?.StudentCardNumber);
 }
 
