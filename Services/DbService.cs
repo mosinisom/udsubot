@@ -45,21 +45,24 @@ public class DbService
         await _context.SaveChangesAsync();
     }
 
-    // под вопросом эти две функции -----------------------------
-    public async Task BlockUser(Users user)
+    public async Task<Users> GetUserByTelegramLink (string TelegramLink)
     {
-        user.HasAccess = false;
-        _context.Users.Update(user);
-        await _context.SaveChangesAsync();
-    }
+        Students? student = await GetStudentByTelegramLink(TelegramLink);
 
-    public async Task UnblockUser(Users user)
-    {
-        user.HasAccess = true;
-        _context.Users.Update(user);
-        await _context.SaveChangesAsync();
+    // придумать что-то с этим
+        if (student == null)
+            return null;
+
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.User_ID == student.User_ID);
+        
+        // придумать что-то с этим
+        if (user == null)
+            return null; 
+
+        return user;
+
+
     }
-    // ----------------------------------------------------------
 
     public async Task AddStudent(Students student)
     {
