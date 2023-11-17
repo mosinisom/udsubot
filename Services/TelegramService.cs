@@ -6,19 +6,21 @@ using Telegram.Bot.Types.Enums;
 
 class TelegramService
 {
-    DbService _db;
+    IServiceScopeFactory _scopeFactory;
     IConfiguration _cfg;
     ILogger<TelegramService> _log;
     TelegramBotClient _bot;
     CancellationTokenSource _cts;
+    AppLogicService _appLogic;
 
-    public TelegramService(DbService db, IConfiguration cfg, ILogger<TelegramService> log)
+    public TelegramService(IServiceScopeFactory scopeFactory, IConfiguration cfg, ILogger<TelegramService> log, AppLogicService appLogic)
     {
-        _db = db;
+        _scopeFactory = scopeFactory;
         _cfg = cfg;
         _log = log;
         _bot = new(_cfg.GetValue<string>("BotSecret"));
         _cts = new();
+        _appLogic = appLogic;
     }
 
     public void Start()
@@ -39,22 +41,47 @@ class TelegramService
 
     async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
     {
-        // Only process Message updates: https://core.telegram.org/bots/api#message
-        if (update.Message is not { } message)
-            return;
-        // Only process text messages
-        if (message.Text is not { } messageText)
-            return;
+        using var scope = _scopeFactory.CreateScope();
+        var dbService = scope.ServiceProvider.GetRequiredService<DbService>();
 
-        var chatId = message.Chat.Id;
+        if (update.Message != null)
+        {
+            var message = update.Message;
+            var chatId = message.Chat.Id;
+            var username = message.From.Username;
 
-        Console.WriteLine($"Received a '{messageText}' message in chat {chatId}.");
+            // if message is a photo
+            if (message.Photo != null)
+            {
+                var photo = message.Photo[^1];
+                await _appLogic.AddPhoto(chatId, photo.FileId, dbService);
 
-        // Echo received message text
-        Message sentMessage = await botClient.SendTextMessageAsync(
-            chatId: chatId,
-            text: "You said:\n" + messageText,
-            cancellationToken: cancellationToken);
+                // send that photo back with caption "Photo ID: {photoId}"
+                await botClient.SendPhotoAsync(
+                    chatId: chatId,
+                    photo: InputFile.FromFileId(_appLogic.GetPhotoPath(chatId, dbService).Result),
+                    caption: $"Photo ID: {photo.FileId} from {username}",
+                    cancellationToken: cancellationToken);
+            }
+            else if (message.Text is { } messageText) // check if message is text
+            {
+                Console.WriteLine($"Received a '{messageText}' message in chat {chatId}.");
+
+                if (messageText.StartsWith("/"))
+                {
+                    var command = messageText.Split(" ")[0];
+                    var args = messageText.Split(" ")[1..];
+                    await _appLogic.HandleCommand(command, args, message, botClient, dbService, username);
+                }
+                else
+                {
+                    await botClient.SendTextMessageAsync(
+                        chatId: chatId,
+                        text: "Я не понял тебя :(",
+                        cancellationToken: cancellationToken);
+                }
+            }
+        }
     }
 
     Task HandlePollingErrorAsync(ITelegramBotClient botClient, Exception exception, CancellationToken cancellationToken)

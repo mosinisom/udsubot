@@ -39,7 +39,7 @@ public class DataContext : DbContext
             entity.Property(e => e.Name)
                 .IsRequired()
                 .HasMaxLength(100)
-                .HasColumnName("institute_name");
+                .HasColumnName("name");
         });
 
         modelBuilder.Entity<Likes>(entity =>
@@ -55,7 +55,7 @@ public class DataContext : DbContext
 
             entity.Property(e => e.Date)
                 .HasColumnType("date")
-                .HasColumnName("like_date");
+                .HasColumnName("date");
 
             entity.Property(e => e.FromStudent_ID).HasColumnName("from_student_id");
             entity.Property(e => e.ToStudent_ID).HasColumnName("to_student_id");
@@ -75,12 +75,12 @@ public class DataContext : DbContext
 
             entity.Property(e => e.Date)
                 .HasColumnType("date")
-                .HasColumnName("message_date");
+                .HasColumnName("date");
 
             entity.Property(e => e.Text)
                 .IsRequired()
                 .HasMaxLength(1000)
-                .HasColumnName("message_text");
+                .HasColumnName("text");
 
             entity.Property(e => e.FromStudent_ID).HasColumnName("from_student_id");
             entity.Property(e => e.ToStudent_ID).HasColumnName("to_student_id");
@@ -101,9 +101,9 @@ public class DataContext : DbContext
             entity.Property(e => e.Path)
                 .IsRequired()
                 .HasMaxLength(1000)
-                .HasColumnName("photo_path");
+                .HasColumnName("path");
 
-            entity.Property(e => e.Student_ID).HasColumnName("student_id");
+            entity.Property(e => e.User_ID).HasColumnName("user_id");
 
         });
 
@@ -144,21 +144,21 @@ public class DataContext : DbContext
             entity.Property(e => e.Name)
                 .IsRequired()
                 .HasMaxLength(100)
-                .HasColumnName("student_name");
+                .HasColumnName("name");
 
             entity.Property(e => e.Institute_ID).HasColumnName("institute_id");
 
             entity.Property(e => e.TelegramLink)
                 .IsRequired()
                 .HasMaxLength(100)
-                .HasColumnName("student_tg_link");
+                .HasColumnName("telegram_link");
 
             entity.Property(e => e.Description)
                 .IsRequired()
                 .HasMaxLength(1000)
-                .HasColumnName("student_description");
+                .HasColumnName("description");
 
-            entity.Property(e => e.Year).HasColumnName("student_year");
+            entity.Property(e => e.Year).HasColumnName("year");
 
             entity.Property(e => e.User_ID).HasColumnName("user_id");
 

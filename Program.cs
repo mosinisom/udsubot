@@ -7,6 +7,7 @@ var connectionString = "Server=127.0.0.1;Port=5432;Database=udsubot;User Id=post
 builder.Services.AddScoped<DbService>();
 builder.Services.AddDbContext<DataContext>(options => options.UseNpgsql(connectionString));
 builder.Services.AddScoped<TelegramService>();
+builder.Services.AddScoped<AppLogicService>();
 
 var app = builder.Build();
 
@@ -15,10 +16,7 @@ using (var scope = app.Services.CreateScope())
     var tg = scope.ServiceProvider.GetRequiredService<TelegramService>();
     tg.Start();
     var dbService = scope.ServiceProvider.GetRequiredService<DbService>();
-    await dbService.AddUser(123456789);
-    var user = await dbService.GetUserByChatId(123456789);
 
-    Console.WriteLine(user?.StudentCardNumber);
 }
 
 app.MapGet("/", () => "Hello World!");

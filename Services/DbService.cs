@@ -20,7 +20,7 @@ public class DbService
             Users.FirstOrDefaultAsync(u => u.Chat_ID == chatId);
     }
 
-    public async Task AddUser(long Chat_ID)
+    public async Task AddUser(long Chat_ID, string username)
     {
         if (await GetUserByChatId(Chat_ID) != null)
             return;
@@ -32,7 +32,19 @@ public class DbService
             RegistrationDate = DateTime.Now,
             StudentCardNumber = 0
         };
+
+        Students student = new()
+        {
+            Name = username,
+            TelegramLink = username,
+            User_ID = user.User_ID,
+            Institute_ID = 0,
+            Year = 0,
+            Description = ""
+        };
+
         await _context.Users.AddAsync(user);
+        await _context.Students.AddAsync(student);
         await _context.SaveChangesAsync();
     }
 
@@ -116,23 +128,45 @@ public class DbService
             .FirstOrDefaultAsync();
     }
 
-    public async Task LikeStudent(Likes like)
+    public async Task LikeStudent(int from_id, int to_id)
     {
+        Likes like = new()
+        {
+            FromStudent_ID = from_id,
+            ToStudent_ID = to_id,
+            Date = DateTime.Now
+        };
         await _context.Likes.AddAsync(like);
         await _context.SaveChangesAsync();
     }
 
-    public async Task<List<Likes>> GetAllMyLikes(int ToStudent_ID)
+    public async Task<List<Likes>> GetAllMyLikes(long chatId)
     {
+        Users? user = await GetUserByChatId(chatId);
+        if (user == null)
+            return null;
+
+        Students? student = await GetStudentByUserId(user.User_ID);
+        if (student == null)
+            return null;
+
         return await _context.Likes
-            .Where(l => l.ToStudent_ID == ToStudent_ID)
+            .Where(l => l.FromStudent_ID == student.Student_ID)
             .ToListAsync();
     }
 
-    public async Task<int> GetLikesCount(int ToStudent_ID)
+    public async Task<int> GetLikesCount(long chatId)
     {
+        Users? user = await GetUserByChatId(chatId);
+        if (user == null)
+            return 0;
+
+        Students? student = await GetStudentByUserId(user.User_ID);
+        if (student == null)
+            return 0;
+        
         return await _context.Likes
-            .Where(l => l.ToStudent_ID == ToStudent_ID)
+            .Where(l => l.ToStudent_ID == student.Student_ID)
             .CountAsync();
     }
 
@@ -156,11 +190,12 @@ public class DbService
         await _context.SaveChangesAsync();
     }
 
-    public async Task<Photos?> GetPhoto(int Student_ID)
+    public async Task<string?> GetPhotoPath(int User_ID)
     {
         return await _context.Photos
-            .Where(p => p.Student_ID == Student_ID)
+            .Where(p => p.User_ID == User_ID)
             .OrderByDescending(p => p.Photo_ID)
+            .Select(p => p.Path)
             .FirstOrDefaultAsync();
     }
 
