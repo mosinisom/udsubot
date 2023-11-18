@@ -56,11 +56,10 @@ class TelegramService
                 var photo = message.Photo[^1];
                 await _appLogic.AddPhoto(chatId, photo.FileId, dbService);
 
-                // send that photo back with caption "Photo ID: {photoId}"
                 await botClient.SendPhotoAsync(
                     chatId: chatId,
                     photo: InputFile.FromFileId(_appLogic.GetPhotoPath(chatId, dbService).Result),
-                    caption: $"Photo ID: {photo.FileId} from {username}",
+                    caption: $"{username}, это твоё фото профиля!",
                     cancellationToken: cancellationToken);
             }
             else if (message.Text is { } messageText) // check if message is text

@@ -46,7 +46,7 @@ public class AppLogicService
 
     public async Task UnblockUser(long chat_id, DbService dbService)
     {
-        Users? user = await _db.GetUserByChatId(chat_id);
+        Users? user = await dbService.GetUserByChatId(chat_id);
         if (user == null)
             return;
         user.HasAccess = true;
@@ -114,7 +114,7 @@ public class AppLogicService
                     cancellationToken: default);
                 break;
             case "/block":
-                if(username != "mosinisom")
+                if (username != "mosinisom")
                     break;
 
                 await BlockUser(args[0], dbService);
@@ -134,7 +134,7 @@ public class AppLogicService
                     cancellationToken: default);
                 break;
             case "/mylikes":
-                int likesCount = await _db.GetLikesCount(message.Chat.Id);
+                int likesCount = await dbService.GetLikesCount(message.Chat.Id);
                 await botClient.SendTextMessageAsync(
                     chatId: message.Chat.Id,
                     text: "Количество лайков: " + likesCount,

@@ -50,30 +50,28 @@ public class DbService
 
     public async Task UpdateUser(Users user)
     {
-        if(user == null)
+        if (user == null)
             return;
 
         _context.Users.Update(user);
         await _context.SaveChangesAsync();
     }
 
-    public async Task<Users> GetUserByTelegramLink (string TelegramLink)
+    public async Task<Users> GetUserByTelegramLink(string TelegramLink)
     {
         Students? student = await GetStudentByTelegramLink(TelegramLink);
 
-    // придумать что-то с этим
+        // придумать что-то с этим
         if (student == null)
             return null;
 
         var user = await _context.Users.FirstOrDefaultAsync(u => u.User_ID == student.User_ID);
-        
+
         // придумать что-то с этим
         if (user == null)
-            return null; 
+            return null;
 
         return user;
-
-
     }
 
     public async Task AddStudent(Students student)
@@ -164,7 +162,7 @@ public class DbService
         Students? student = await GetStudentByUserId(user.User_ID);
         if (student == null)
             return 0;
-        
+
         return await _context.Likes
             .Where(l => l.ToStudent_ID == student.Student_ID)
             .CountAsync();

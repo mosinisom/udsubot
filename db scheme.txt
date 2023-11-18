@@ -1,3 +1,6 @@
+NOT VALID ANYMORE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+
 public class Photos
 {
     public int Photo_ID { get; set; }

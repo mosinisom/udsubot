@@ -14,7 +14,7 @@ public class DataContext : DbContext
         optionsBuilder.UseNpgsql("Server=127.0.0.1;Port=5432;Database=udsubot;User Id=postgres;Password=eder432;");
     }
 
-    
+
 
     public DbSet<Institutes> Institutes { get; set; }
     public DbSet<Likes> Likes { get; set; }
