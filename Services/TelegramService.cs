@@ -75,8 +75,15 @@ class TelegramService
                 await botClient.SendPhotoAsync(
                     chatId: chatId,
                     photo: InputFile.FromFileId(_appLogic.GetPhotoPath(chatId, dbService).Result),
-                    caption: $"{username}, это Ваше фото профиля!",
+                    caption: $"{username}, это Ваше фото профиля! Если не нравится, то пришлите другое :)",
                     cancellationToken: cancellationToken);
+
+                int state = await _appLogic.GetState(chatId, dbService);
+                if(state == (int)stateEnum.waiting_for_student_photo)
+                {
+                    await _appLogic.HandleState(state, message, botClient, dbService);
+                }
+                
             }
             else if (message.Text is { } messageText) // check if message is text
             {

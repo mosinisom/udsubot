@@ -297,14 +297,14 @@ public class AppLogicService
                     chatId: message.Chat.Id,
                     photo: InputFile.FromFileId(GetPhotoPath(message.Chat.Id, dbService).Result),
                     caption: "Ваша анкета: \n" +
-                             student.Name + ", " + student.Year +" курс "+ InstituteDictionary[student.Institute_ID] +"\n" +
+                             student.Name + ", " + student.Year + " курс " + InstituteDictionary[student.Institute_ID] + "\n" +
                              student.Description,
                     cancellationToken: default);
                 break;
             case "/setinstitute":
                 if (!int.TryParse(args[0], out int institute_id))
                 {
-                    if(1 > institute_id || institute_id > 14)
+                    if (1 > institute_id || institute_id > 14)
                         return;
                     await AddStudentInstitute(message.Chat.Id, institute_id, dbService);
                 }
@@ -342,7 +342,8 @@ public class AppLogicService
                         chatId: message.Chat.Id,
                         text: "Введите Ваше имя и фамилию:",
                         cancellationToken: default);
-                } else
+                }
+                else
                 {
                     await botClient.SendTextMessageAsync(
                         chatId: message.Chat.Id,
@@ -350,6 +351,7 @@ public class AppLogicService
                         cancellationToken: default);
                 }
                 break;
+
             case (int)stateEnum.waiting_for_student_name:
                 InlineKeyboardMarkup inlineKeyboardMarkup = new(new[]
                 {
@@ -418,6 +420,7 @@ public class AppLogicService
                     replyMarkup: inlineKeyboardMarkup,
                     cancellationToken: default);
                 break;
+
             case (int)stateEnum.waiting_for_student_year:
                 if (!int.TryParse(message.Text, out int year))
                 {
@@ -444,14 +447,21 @@ public class AppLogicService
                         cancellationToken: default);
                 }
                 break;
+
             case (int)stateEnum.waiting_for_student_description:
+                await AddStudentDescription(message.Chat.Id, message.Text, dbService);
+                await SetState(message.Chat.Id, (int)stateEnum.waiting_for_student_photo, dbService);
+                await botClient.SendTextMessageAsync(
+                    chatId: message.Chat.Id,
+                    text: "Пришлите фото для анкеты:",
+                    cancellationToken: default);
+                break;
+
+            case (int)stateEnum.waiting_for_student_photo:
+                await SetState(message.Chat.Id, (int)stateEnum.default_state, dbService);
                 Students? student = await dbService.GetStudentByChatId(message.Chat.Id);
                 if (student == null)
                     return;
-
-                await AddStudentDescription(message.Chat.Id, message.Text, dbService);
-
-                await SetState(message.Chat.Id, (int)stateEnum.default_state, dbService);
                 inlineKeyboardMarkup = new(new[]
                 {
                         new[]
@@ -465,7 +475,6 @@ public class AppLogicService
                     replyMarkup: inlineKeyboardMarkup,
                     cancellationToken: default);
 
-
                 await botClient.SendPhotoAsync(
                     chatId: message.Chat.Id,
                     photo: InputFile.FromFileId(GetPhotoPath(message.Chat.Id, dbService).Result),
@@ -475,6 +484,7 @@ public class AppLogicService
                              "Текст: " + student.Description,
                     cancellationToken: default);
                 break;
+
             default:
                 await botClient.SendTextMessageAsync(
                     chatId: message.Chat.Id,

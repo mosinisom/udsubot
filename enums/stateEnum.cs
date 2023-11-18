@@ -5,4 +5,5 @@ enum stateEnum
     waiting_for_student_name,
     waiting_for_student_year,
     waiting_for_student_description,
+    waiting_for_student_photo,
 }
