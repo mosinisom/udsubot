@@ -2,17 +2,18 @@ using Microsoft.EntityFrameworkCore;
 
 public class DataContext : DbContext
 {
-    protected readonly IConfiguration Configuration;
+    private readonly IConfiguration _configuration;
 
     public DataContext(IConfiguration configuration)
     {
-        Configuration = configuration;
+        _configuration = configuration;
     }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
-        optionsBuilder.UseNpgsql("Server=127.0.0.1;Port=5432;Database=udsubot;User Id=postgres;Password=eder432;");
+        optionsBuilder.UseNpgsql(_configuration.GetConnectionString("ConnectionString"));
     }
+
 
 
 
@@ -22,6 +23,7 @@ public class DataContext : DbContext
     public DbSet<Photos> Photos { get; set; }
     public DbSet<Students> Students { get; set; }
     public DbSet<Users> Users { get; set; }
+    public DbSet<StateOfBot> StateOfBot { get; set; }
     // onmodelcreating
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -161,6 +163,23 @@ public class DataContext : DbContext
             entity.Property(e => e.Year).HasColumnName("year");
 
             entity.Property(e => e.User_ID).HasColumnName("user_id");
+
+            modelBuilder.Entity<StateOfBot>(entity =>
+            {
+                entity.HasKey(e => e.StateOfBot_ID)
+                    .HasName("stateofbot_pkey");
+
+                entity.ToTable("stateofbot");
+
+                entity.Property(e => e.StateOfBot_ID)
+                    .HasColumnName("stateofbot_id")
+                    .HasDefaultValueSql("nextval('stateofbot_stateofbot_id_seq'::regclass)");
+
+                entity.Property(e => e.Chat_ID).HasColumnName("chat_id");
+
+                entity.Property(e => e.State).HasColumnName("state");
+
+            });
 
 
 

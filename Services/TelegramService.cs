@@ -44,11 +44,27 @@ class TelegramService
         using var scope = _scopeFactory.CreateScope();
         var dbService = scope.ServiceProvider.GetRequiredService<DbService>();
 
-        if (update.Message != null)
+        if (update.Type == UpdateType.CallbackQuery)
+        {
+            var callbackQuery = update.CallbackQuery;
+            var chatId = callbackQuery.Message.Chat.Id;
+            var messageId = callbackQuery.Message.MessageId;
+            var callbackData = callbackQuery.Data;
+
+            if(callbackData.StartsWith("/"))
+            {
+                var command = callbackData.Split(" ")[0];
+                var args = callbackData.Split(" ")[1..];
+                await _appLogic.HandleCommand(command, args, callbackQuery.Message, botClient, dbService, callbackQuery.From.Username);
+            }
+            await botClient.EditMessageReplyMarkupAsync(chatId, messageId, replyMarkup: null);
+        }
+        else if (update.Message != null)
         {
             var message = update.Message;
             var chatId = message.Chat.Id;
             var username = message.From.Username;
+
 
             // if message is a photo
             if (message.Photo != null)
@@ -59,18 +75,23 @@ class TelegramService
                 await botClient.SendPhotoAsync(
                     chatId: chatId,
                     photo: InputFile.FromFileId(_appLogic.GetPhotoPath(chatId, dbService).Result),
-                    caption: $"{username}, это твоё фото профиля!",
+                    caption: $"{username}, это Ваше фото профиля!",
                     cancellationToken: cancellationToken);
             }
             else if (message.Text is { } messageText) // check if message is text
             {
-                Console.WriteLine($"Received a '{messageText}' message in chat {chatId}.");
+                int state = await _appLogic.GetState(chatId, dbService);
+                 Console.WriteLine($"Received a '{messageText}' message in chat {chatId}.");
 
                 if (messageText.StartsWith("/"))
                 {
                     var command = messageText.Split(" ")[0];
                     var args = messageText.Split(" ")[1..];
                     await _appLogic.HandleCommand(command, args, message, botClient, dbService, username);
+                }
+                else if(state != 0)
+                {
+                    await _appLogic.HandleState(state, message, botClient, dbService);
                 }
                 else
                 {

@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 
-public class DbService
+public class DbService : IDisposable
 {
     private readonly DataContext _context;
 
@@ -88,6 +88,15 @@ public class DbService
             Students.FirstOrDefaultAsync(s => s.User_ID == User_ID);
     }
 
+    public async Task<Students?> GetStudentByChatId(long Chat_ID)
+    {
+        Users? user = await GetUserByChatId(Chat_ID);
+        if (user == null)
+            return null;
+
+        return await GetStudentByUserId(user.User_ID);
+    }
+
     public async Task UpdateStudent(Students student)
     {
         _context.Students.Update(student);
@@ -126,17 +135,12 @@ public class DbService
             .FirstOrDefaultAsync();
     }
 
-    public async Task LikeStudent(int from_id, int to_id)
+    public async Task LikeStudent(Likes like)
     {
-        Likes like = new()
-        {
-            FromStudent_ID = from_id,
-            ToStudent_ID = to_id,
-            Date = DateTime.Now
-        };
         await _context.Likes.AddAsync(like);
         await _context.SaveChangesAsync();
     }
+
 
     public async Task<List<Likes>> GetAllMyLikes(long chatId)
     {
@@ -213,10 +217,29 @@ public class DbService
         }
     }
 
+    public async Task SetStateOfBot(long chatId, int state)
+    {
+        StateOfBot stateOfBot = new()
+        {
+            Chat_ID = chatId,
+            State = state
+        };
 
+        await _context.StateOfBot.AddAsync(stateOfBot);
+        await _context.SaveChangesAsync();
+    }
 
+    public async Task<int> GetStateOfBot(long chatId)
+    {
+            return await _context.StateOfBot
+                .Where(s => s.Chat_ID == chatId)
+                .OrderByDescending(s => s.StateOfBot_ID)
+                .Select(s => s.State)
+                .FirstOrDefaultAsync();
+    }
 
-
-
-
+    public void Dispose()
+    {
+        _context.Dispose();
+    }
 }
