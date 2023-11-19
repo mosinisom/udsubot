@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.VisualBasic;
 
 public class DbService : IDisposable
 {
@@ -22,10 +23,15 @@ public class DbService : IDisposable
 
     public async Task AddUser(long Chat_ID, string username)
     {
-        if (await GetUserByChatId(Chat_ID) != null)
+        Users? user = await GetUserByChatId(Chat_ID);
+        if (user != null)
+        {
+            user.HasAccess = false;
+            await UpdateUser(user);
             return;
+        }
 
-        Users user = new()
+        user = new()
         {
             Chat_ID = Chat_ID,
             HasAccess = false,
@@ -109,11 +115,17 @@ public class DbService : IDisposable
             Students.FirstOrDefaultAsync(s => s.TelegramLink == TelegramLink);
     }
 
-    public async Task<List<Students>> GetRandomStudents()
+    public async Task<Students?> GetOneRandomStudent(string fromUsername)
     {
-        return await _context.Students
-            .FromSqlRaw("SELECT * FROM students ORDER BY RANDOM() LIMIT 5")
-            .ToListAsync();
+        Students? student = await _context.Students
+            .FromSqlRaw("SELECT * FROM students WHERE telegram_link != {0} ORDER BY RANDOM() LIMIT 1", fromUsername)
+            .FirstOrDefaultAsync();
+
+        student ??= await _context.Students
+                .FromSqlRaw("SELECT * FROM students ORDER BY RANDOM() LIMIT 1")
+                .FirstOrDefaultAsync();
+        
+        return student;
     }
 
     public async Task<List<Students>> GetAllStudents()
@@ -172,6 +184,17 @@ public class DbService : IDisposable
             .CountAsync();
     }
 
+    public async Task<int> GetLikesCount(string username)
+    {
+        Students? student = await GetStudentByTelegramLink(username);
+        if (student == null)
+            return 0;
+
+        return await _context.Likes
+            .Where(l => l.ToStudent_ID == student.Student_ID)
+            .CountAsync();
+    }
+
     public async Task<List<Students>> GetStudentsByInstitute(int Institute_ID)
     {
         return await _context.Students
@@ -217,25 +240,25 @@ public class DbService : IDisposable
         }
     }
 
-    public async Task SetStateOfBot(long chatId, int state)
+    public async Task SetStateOfBot(long chatId, int state, string data = "0")
     {
         StateOfBot stateOfBot = new()
         {
             Chat_ID = chatId,
-            State = state
+            State = state,
+            Data = data
         };
 
         await _context.StateOfBot.AddAsync(stateOfBot);
         await _context.SaveChangesAsync();
     }
 
-    public async Task<int> GetStateOfBot(long chatId)
+    public async Task<StateOfBot?> GetStateOfBot(long chatId)
     {
-            return await _context.StateOfBot
-                .Where(s => s.Chat_ID == chatId)
-                .OrderByDescending(s => s.StateOfBot_ID)
-                .Select(s => s.State)
-                .FirstOrDefaultAsync();
+        return await _context.StateOfBot
+            .Where(s => s.Chat_ID == chatId)
+            .OrderByDescending(s => s.StateOfBot_ID)
+            .FirstOrDefaultAsync();
     }
 
     public void Dispose()

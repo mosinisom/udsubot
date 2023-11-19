@@ -178,6 +178,7 @@ public class DataContext : DbContext
                 entity.Property(e => e.Chat_ID).HasColumnName("chat_id");
 
                 entity.Property(e => e.State).HasColumnName("state");
+                entity.Property(e => e.Data).HasColumnName("data");
 
             });
 

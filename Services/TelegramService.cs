@@ -41,73 +41,80 @@ class TelegramService
 
     async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
     {
-        using var scope = _scopeFactory.CreateScope();
-        var dbService = scope.ServiceProvider.GetRequiredService<DbService>();
-
-        if (update.Type == UpdateType.CallbackQuery)
+        try
         {
-            var callbackQuery = update.CallbackQuery;
-            var chatId = callbackQuery.Message.Chat.Id;
-            var messageId = callbackQuery.Message.MessageId;
-            var callbackData = callbackQuery.Data;
+            using var scope = _scopeFactory.CreateScope();
+            var dbService = scope.ServiceProvider.GetRequiredService<DbService>();
 
-            if(callbackData.StartsWith("/"))
+            if (update.Type == UpdateType.CallbackQuery)
             {
-                var command = callbackData.Split(" ")[0];
-                var args = callbackData.Split(" ")[1..];
-                await _appLogic.HandleCommand(command, args, callbackQuery.Message, botClient, dbService, callbackQuery.From.Username);
+                var callbackQuery = update.CallbackQuery;
+                var chatId = callbackQuery.Message.Chat.Id;
+                var messageId = callbackQuery.Message.MessageId;
+                var callbackData = callbackQuery.Data;
+
+                if (callbackData.StartsWith("/"))
+                {
+                    var command = callbackData.Split(" ")[0];
+                    var args = callbackData.Split(" ")[1..];
+                    await _appLogic.HandleCommand(command, args, callbackQuery.Message, botClient, dbService, callbackQuery.From.Username);
+                }
+                await botClient.EditMessageReplyMarkupAsync(chatId, messageId, replyMarkup: null);
             }
-            await botClient.EditMessageReplyMarkupAsync(chatId, messageId, replyMarkup: null);
-        }
-        else if (update.Message != null)
-        {
-            var message = update.Message;
-            var chatId = message.Chat.Id;
-            var username = message.From.Username;
-
-
-            // if message is a photo
-            if (message.Photo != null)
+            else if (update.Message != null)
             {
-                var photo = message.Photo[^1];
-                await _appLogic.AddPhoto(chatId, photo.FileId, dbService);
+                var message = update.Message;
+                var chatId = message.Chat.Id;
+                var username = message.From.Username;
 
-                await botClient.SendPhotoAsync(
-                    chatId: chatId,
-                    photo: InputFile.FromFileId(_appLogic.GetPhotoPath(chatId, dbService).Result),
-                    caption: $"{username}, это Ваше фото профиля! Если не нравится, то пришлите другое :)",
-                    cancellationToken: cancellationToken);
 
-                int state = await _appLogic.GetState(chatId, dbService);
-                if(state == (int)stateEnum.waiting_for_student_photo)
+                // if message is a photo
+                if (message.Photo != null)
                 {
-                    await _appLogic.HandleState(state, message, botClient, dbService);
-                }
-                
-            }
-            else if (message.Text is { } messageText) // check if message is text
-            {
-                int state = await _appLogic.GetState(chatId, dbService);
-                 Console.WriteLine($"Received a '{messageText}' message in chat {chatId}.");
+                    var photo = message.Photo[^1];
+                    await _appLogic.AddPhoto(chatId, photo.FileId, dbService);
 
-                if (messageText.StartsWith("/"))
-                {
-                    var command = messageText.Split(" ")[0];
-                    var args = messageText.Split(" ")[1..];
-                    await _appLogic.HandleCommand(command, args, message, botClient, dbService, username);
-                }
-                else if(state != 0)
-                {
-                    await _appLogic.HandleState(state, message, botClient, dbService);
-                }
-                else
-                {
-                    await botClient.SendTextMessageAsync(
+                    await botClient.SendPhotoAsync(
                         chatId: chatId,
-                        text: "Я не понял тебя :(",
+                        photo: InputFile.FromFileId(_appLogic.GetPhotoPath(chatId, dbService).Result),
+                        caption: $"{username}, это Ваше фото профиля! Если не нравится, пришлите другое :)",
                         cancellationToken: cancellationToken);
+
+                    StateOfBot state = await _appLogic.GetState(chatId, dbService);
+                    if (state.State == (int)stateEnum.waiting_for_student_photo)
+                    {
+                        await _appLogic.HandleState(state, message, botClient, dbService);
+                    }
+
+                }
+                else if (message.Text is { } messageText) // check if message is text
+                {
+                    StateOfBot state = await _appLogic.GetState(chatId, dbService);
+                    Console.WriteLine($"Received a '{messageText}' message in chat {chatId}.");
+
+                    if (messageText.StartsWith("/"))
+                    {
+                        var command = messageText.Split(" ")[0];
+                        var args = messageText.Split(" ")[1..];
+                        await _appLogic.HandleCommand(command, args, message, botClient, dbService, username);
+                    }
+                    else if (state.State != 0)
+                    {
+                        await _appLogic.HandleState(state, message, botClient, dbService);
+                    }
+                    else
+                    {
+                        await botClient.SendTextMessageAsync(
+                            chatId: chatId,
+                            text: "Я не понял тебя сейчас :(",
+                            cancellationToken: cancellationToken);
+                    }
                 }
             }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Произошла ошибка в TelegramService.HandleUpdateAsync: {ex.Message}");
         }
     }
 

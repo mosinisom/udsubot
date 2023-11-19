@@ -32,6 +32,44 @@ public class AppLogicService
         { 14, "МКПО" }
     };
 
+    ReplyKeyboardMarkup replyKeyboardMarkup = new(new[]
+    {
+    new KeyboardButton[] { "/далее" },
+    })
+    {
+        ResizeKeyboard = true
+    };
+
+
+    public async Task SendRandomProfile(long chatId, string fromUsername, ITelegramBotClient botClient, DbService dbService)
+    {
+        Students? student = await dbService.GetOneRandomStudent(fromUsername);
+        if (student == null)
+            return;
+
+        InlineKeyboardMarkup inlineKeyboardMarkup = new(new[]
+        {
+                        new[]
+                        {
+                            InlineKeyboardButton.WithCallbackData("Лайк", "/like " + student.TelegramLink),
+                        },
+                        new[]
+                        {
+                            InlineKeyboardButton.WithCallbackData("Сообщение", "/message " + student.TelegramLink),
+                        },
+                        new[]
+                        {
+                            InlineKeyboardButton.WithCallbackData("Другие анкеты", "/далее"),
+                        }
+                    });
+
+        await botClient.SendPhotoAsync(
+            chatId: chatId,
+            photo: InputFile.FromFileId(GetPhotoPath(student.TelegramLink, dbService).Result),
+            caption: student.Name + ", " + student.Year + " курс " + InstituteDictionary[student.Institute_ID] + "\n" + student.Description + "\n" + "Количество лайков: " + await dbService.GetLikesCount(student.TelegramLink),
+            replyMarkup: inlineKeyboardMarkup,
+            cancellationToken: default);
+    }
 
     public async Task BlockUser(string telegramlink, DbService dbService)
     {
@@ -156,9 +194,20 @@ public class AppLogicService
         return await dbService.GetPhotoPath(user.User_ID);
     }
 
+    public async Task SendMessageByUsername(string toUsername, string message, ITelegramBotClient botClient, DbService dbService, IReplyMarkup? replyMarkup = null)
+    {
+        Users? user = await dbService.GetUserByTelegramLink(toUsername);
+        if (user == null)
+            return;
 
+        await botClient.SendTextMessageAsync(
+            chatId: user.Chat_ID,
+            text: message,
+            replyMarkup: replyMarkup,
+            cancellationToken: default);
+    }
 
-    public async Task Like(long chatId, string username, DbService dbService)
+    public async Task Like(long chatId, string username, DbService dbService, ITelegramBotClient botClient)
     {
         Students? student1 = await dbService.GetStudentByChatId(chatId);
         if (student1 == null)
@@ -174,10 +223,19 @@ public class AppLogicService
             ToStudent_ID = student2.Student_ID,
             Date = DateTime.Now
         };
+
+        InlineKeyboardMarkup inlineKeyboardMarkup = new(new[]
+        {
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData("Другие анкеты", "/далее"),
+            }
+        });
         await dbService.LikeStudent(like);
+        await SendMessageByUsername(username, "Вам пришёл лайк от @" + student1.TelegramLink + "!", botClient, dbService, inlineKeyboardMarkup);
     }
 
-    public async Task Like(long chatId, int student_id, DbService dbService)
+    public async Task Like(long chatId, int student_id, DbService dbService, ITelegramBotClient botClient)
     {
         Students? student1 = await dbService.GetStudentByChatId(chatId);
         if (student1 == null)
@@ -192,14 +250,14 @@ public class AppLogicService
         await dbService.LikeStudent(like);
     }
 
-    public async Task<int> GetState(long chatId, DbService dbService)
+    public async Task<StateOfBot> GetState(long chatId, DbService dbService)
     {
         return await dbService.GetStateOfBot(chatId);
     }
 
-    public async Task SetState(long chatId, int state, DbService dbService)
+    public async Task SetState(long chatId, int state, string? data, DbService dbService)
     {
-        await dbService.SetStateOfBot(chatId, state);
+        await dbService.SetStateOfBot(chatId, state, data);
     }
 
     public async Task HandleCommand(string command, string[] args, Message message, ITelegramBotClient botClient, DbService dbService, string username)
@@ -220,7 +278,7 @@ public class AppLogicService
                 {
                         new[]
                         {
-                            InlineKeyboardButton.WithCallbackData("Like", "/like mosinisom"),
+                            InlineKeyboardButton.WithCallbackData("Лайк", "/like mosinisom"),
                         }
                     });
 
@@ -229,8 +287,9 @@ public class AppLogicService
                     photo: InputFile.FromFileId(GetPhotoPath("mosinisom", dbService).Result),
                     caption: "Саша Мосин, 3 курс ИМИТиФ, Прикладная информатика в юриспруденции. \n" +
                              "Мои основные корпуса: 4 и 6 \n" +
-                             "Люблю знакомиться с новыми людьми и обниматься. Почти всегда меня можно встретить с улыбкой на лице)",
-                    replyMarkup: inlineKeyboardMarkup,
+                             "Хочу подружиться с людьми из каждого института! Почти всегда меня можно встретить с улыбкой на лице)" + "\n" +
+                             "Количество лайков: " + await dbService.GetLikesCount("mosinisom"),
+                    // replyMarkup: inlineKeyboardMarkup,
                     cancellationToken: default);
 
                 var user = await dbService.GetUserByChatId(message.Chat.Id);
@@ -238,7 +297,7 @@ public class AppLogicService
 
                 if (user.HasAccess == false)
                 {
-                    await SetState(message.Chat.Id, (int)stateEnum.waiting_for_student_number, dbService);
+                    await SetState(message.Chat.Id, (int)stateEnum.waiting_for_student_number, "", dbService);
                     await botClient.SendTextMessageAsync(
                         chatId: message.Chat.Id,
                         text: "Введите номер студенческого билета (тот, что под штрих кодом), пожалуйста, \n" +
@@ -283,10 +342,18 @@ public class AppLogicService
                     cancellationToken: default);
                 break;
             case "/like":
-                await Like(message.Chat.Id, args[0], dbService);
+                await Like(message.Chat.Id, args[0], dbService, botClient);
+                inlineKeyboardMarkup = new(new[]
+                {
+                    new[]
+                    {
+                        InlineKeyboardButton.WithCallbackData("Другие анкеты", "/далее"),
+                    }
+                });
                 await botClient.SendTextMessageAsync(
                     chatId: message.Chat.Id,
                     text: "Вы лайкнули пользователя",
+                    replyMarkup: inlineKeyboardMarkup,
                     cancellationToken: default);
                 break;
             case "/myprofile":
@@ -296,9 +363,12 @@ public class AppLogicService
                 await botClient.SendPhotoAsync(
                     chatId: message.Chat.Id,
                     photo: InputFile.FromFileId(GetPhotoPath(message.Chat.Id, dbService).Result),
-                    caption: "Ваша анкета: \n" +
-                             student.Name + ", " + student.Year + " курс " + InstituteDictionary[student.Institute_ID] + "\n" +
-                             student.Description,
+                    caption: "Ваша анкета: \n"
+                            + student.Name + ", "
+                            + student.Year + " курс "
+                            + InstituteDictionary[student.Institute_ID] + "\n"
+                            + student.Description
+                            + "\nКоличество лайков: " + await dbService.GetLikesCount(message.Chat.Id),
                     cancellationToken: default);
                 break;
             case "/setinstitute":
@@ -308,9 +378,24 @@ public class AppLogicService
                         return;
                     await AddStudentInstitute(message.Chat.Id, institute_id, dbService);
                 }
-
                 break;
 
+            case "/message":
+                StateOfBot state = await GetState(message.Chat.Id, dbService);
+                if (state.State != (int)stateEnum.default_state)
+                    return;
+                await SetState(message.Chat.Id, (int)stateEnum.waiting_for_message_to_another_student, args[0], dbService);
+                await botClient.SendTextMessageAsync(
+                    chatId: message.Chat.Id,
+                    text: "Введите сообщение для выбранного пользователя:",
+                    cancellationToken: default);
+                break;
+            case "/далее":
+                state = await GetState(message.Chat.Id, dbService);
+                if (state.State != (int)stateEnum.default_state)
+                    return;
+                await SendRandomProfile(message.Chat.Id, username, botClient, dbService);
+                break;
             default:
                 await botClient.SendTextMessageAsync(
                     chatId: message.Chat.Id,
@@ -320,10 +405,9 @@ public class AppLogicService
         }
     }
 
-    // await _appLogic.HandleState(state, message, botClient, dbService);
-    public async Task HandleState(int state, Message message, ITelegramBotClient botClient, DbService dbService)
+    public async Task HandleState(StateOfBot state, Message message, ITelegramBotClient botClient, DbService dbService)
     {
-        switch (state)
+        switch (state.State)
         {
             case (int)stateEnum.waiting_for_student_number:
                 if (!long.TryParse(message.Text, out long student_card_number))
@@ -337,7 +421,7 @@ public class AppLogicService
                 if (message.Text.Length == 10)
                 {
                     await AddStudentCardNumber(message.Chat.Id, student_card_number, dbService);
-                    await SetState(message.Chat.Id, (int)stateEnum.waiting_for_student_name, dbService);
+                    await SetState(message.Chat.Id, (int)stateEnum.waiting_for_student_name, "", dbService);
                     await botClient.SendTextMessageAsync(
                         chatId: message.Chat.Id,
                         text: "Введите Ваше имя и фамилию:",
@@ -413,7 +497,7 @@ public class AppLogicService
                         }
                     });
                 await AddStudentName(message.Chat.Id, message.Text, dbService);
-                await SetState(message.Chat.Id, (int)stateEnum.waiting_for_student_year, dbService);
+                await SetState(message.Chat.Id, (int)stateEnum.waiting_for_student_year, "", dbService);
                 await botClient.SendTextMessageAsync(
                     chatId: message.Chat.Id,
                     text: "Введите Ваш курс и выберите институт:",
@@ -433,7 +517,7 @@ public class AppLogicService
                 if (year >= 1 && year <= 6)
                 {
                     await AddStudentYear(message.Chat.Id, year, dbService);
-                    await SetState(message.Chat.Id, (int)stateEnum.waiting_for_student_description, dbService);
+                    await SetState(message.Chat.Id, (int)stateEnum.waiting_for_student_description, "", dbService);
                     await botClient.SendTextMessageAsync(
                         chatId: message.Chat.Id,
                         text: "Введите текст анкеты:",
@@ -450,7 +534,7 @@ public class AppLogicService
 
             case (int)stateEnum.waiting_for_student_description:
                 await AddStudentDescription(message.Chat.Id, message.Text, dbService);
-                await SetState(message.Chat.Id, (int)stateEnum.waiting_for_student_photo, dbService);
+                await SetState(message.Chat.Id, (int)stateEnum.waiting_for_student_photo, "", dbService);
                 await botClient.SendTextMessageAsync(
                     chatId: message.Chat.Id,
                     text: "Пришлите фото для анкеты:",
@@ -458,22 +542,23 @@ public class AppLogicService
                 break;
 
             case (int)stateEnum.waiting_for_student_photo:
-                await SetState(message.Chat.Id, (int)stateEnum.default_state, dbService);
+                await SetState(message.Chat.Id, (int)stateEnum.default_state, "", dbService);
                 Students? student = await dbService.GetStudentByChatId(message.Chat.Id);
                 if (student == null)
                     return;
-                inlineKeyboardMarkup = new(new[]
-                {
-                        new[]
-                        {
-                            InlineKeyboardButton.WithCallbackData("Моя анкета", "/myprofile"),
-                        }
-                    });
+
                 await botClient.SendTextMessageAsync(
                     chatId: message.Chat.Id,
-                    text: "Спасибо за заполнение анкеты! Теперь вы можете посмотреть её, нажав на кнопку ниже:",
-                    replyMarkup: inlineKeyboardMarkup,
+                    text: "Спасибо за заполнение анкеты! Вы всегда можете полюбоваться ей через \"/myprofile\", а заполнить заново командой \"/start\":",
                     cancellationToken: default);
+
+                inlineKeyboardMarkup = new(new[]
+                {
+                    new[]
+                    {
+                        InlineKeyboardButton.WithCallbackData("Смотреть анкеты", "/далее"),
+                    }
+                });
 
                 await botClient.SendPhotoAsync(
                     chatId: message.Chat.Id,
@@ -482,13 +567,35 @@ public class AppLogicService
                              "Имя: " + student.Name + "\n" +
                              "Курс: " + student.Year + "\n" +
                              "Текст: " + student.Description,
+                    replyMarkup: inlineKeyboardMarkup,
                     cancellationToken: default);
                 break;
 
+            case (int)stateEnum.waiting_for_message_to_another_student:
+                inlineKeyboardMarkup = new(new[]
+                {
+                        new[]
+                        {
+                            InlineKeyboardButton.WithCallbackData("Смотреть дальше", "/далее"),
+                        }
+                });
+
+                await SendMessageByUsername(state.Data, message.Text + "\n(от @" + message.Chat.Username + ")", botClient, dbService, inlineKeyboardMarkup);
+                await SetState(message.Chat.Id, (int)stateEnum.default_state, "", dbService);
+
+                await botClient.SendTextMessageAsync(
+                    chatId: message.Chat.Id,
+                    text: "Сообщение отправлено (наверно)!"
+                        + "\n\n"
+                        + "Если хотите посмотреть другие анкеты, нажмите на кнопку ниже:",
+                    replyMarkup: inlineKeyboardMarkup,
+                    cancellationToken: default);
+
+                break;
             default:
                 await botClient.SendTextMessageAsync(
                     chatId: message.Chat.Id,
-                    text: "Я не понял тебя :(",
+                    text: "Я не понял тебя тут :(",
                     cancellationToken: default);
                 break;
 
