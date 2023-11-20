@@ -51,11 +51,12 @@ public class AppLogicService
         {
                         new[]
                         {
-                            InlineKeyboardButton.WithCallbackData("Лайк", "/like " + student.TelegramLink),
+                            InlineKeyboardButton.WithCallbackData("❤️", "/like " + student.TelegramLink),
+                            InlineKeyboardButton.WithCallbackData("✉️", "/message " + student.TelegramLink)
                         },
                         new[]
                         {
-                            InlineKeyboardButton.WithCallbackData("Сообщение", "/message " + student.TelegramLink),
+                            InlineKeyboardButton.WithCallbackData("Жалоба", "/жалоба " + student.TelegramLink),
                         },
                         new[]
                         {
@@ -104,6 +105,44 @@ public class AppLogicService
             return;
         user.HasAccess = true;
         await dbService.UpdateUser(user);
+    }
+
+    public async Task BanUser(long chat_id, string reason, DbService dbService)
+    {
+        Users? user = await dbService.GetUserByChatId(chat_id);
+        if (user == null)
+            return;
+
+        Students? student = await dbService.GetStudentByChatId(chat_id);
+        if (student == null)
+            return;
+
+        BannedUsers bannedUser = new()
+        {
+            Chat_id = user.Chat_ID,
+            Username = student.TelegramLink,
+            Reason = reason
+        };
+        await dbService.BanUser(bannedUser);
+    }
+
+    public async Task BanUser(string telegramlink, string reason, DbService dbService)
+    {
+        Users? user = await dbService.GetUserByTelegramLink(telegramlink);
+        if (user == null)
+            return;
+
+        Students? student = await dbService.GetStudentByTelegramLink(telegramlink);
+        if (student == null)
+            return;
+
+        BannedUsers bannedUser = new()
+        {
+            Chat_id = user.Chat_ID,
+            Username = student.TelegramLink,
+            Reason = reason
+        };
+        await dbService.BanUser(bannedUser);
     }
 
     public async Task AddStudentCardNumber(long chat_id, long student_card_number, DbService dbService)
@@ -207,6 +246,19 @@ public class AppLogicService
             cancellationToken: default);
     }
 
+    public async Task SendMessageToAll(string message, ITelegramBotClient botClient, DbService dbService, IReplyMarkup? replyMarkup = null)
+    {
+        List<Users> users = await dbService.GetAllUsers();
+        foreach (Users user in users)
+        {
+            await botClient.SendTextMessageAsync(
+                chatId: user.Chat_ID,
+                text: message,
+                replyMarkup: replyMarkup,
+                cancellationToken: default);
+        }
+    }
+
     public async Task Like(long chatId, string username, DbService dbService, ITelegramBotClient botClient)
     {
         Students? student1 = await dbService.GetStudentByChatId(chatId);
@@ -278,7 +330,7 @@ public class AppLogicService
                 {
                         new[]
                         {
-                            InlineKeyboardButton.WithCallbackData("Лайк", "/like mosinisom"),
+                            InlineKeyboardButton.WithCallbackData("❤️", "/like mosinisom"),
                         }
                     });
 
@@ -332,6 +384,16 @@ public class AppLogicService
                 await botClient.SendTextMessageAsync(
                     chatId: message.Chat.Id,
                     text: "Вы разблокировали пользователя с ником " + args[0],
+                    cancellationToken: default);
+                break;
+            case "/ban":
+                if (username != "mosinisom")
+                    break;
+
+                await BanUser(args[0], args[1], dbService);
+                await botClient.SendTextMessageAsync(
+                    chatId: message.Chat.Id,
+                    text: "Вы забанили пользователя с ником " + args[0],
                     cancellationToken: default);
                 break;
             case "/mylikes":
@@ -396,10 +458,49 @@ public class AppLogicService
                     return;
                 await SendRandomProfile(message.Chat.Id, username, botClient, dbService);
                 break;
+            case "/sendtoall":
+                if (username != "mosinisom")
+                    break;
+
+                string messageToSend = "";
+                for (int i = 0; i < args.Length; i++)
+                {
+                    messageToSend += args[i] + " ";
+                }
+
+                await SendMessageToAll(messageToSend, botClient, dbService);
+                await botClient.SendTextMessageAsync(
+                    chatId: message.Chat.Id,
+                    text: "Сообщение всем отправлено!",
+                    cancellationToken: default);
+                break;
+            case "/жалоба":
+                inlineKeyboardMarkup = new(new[]
+                {
+                    new[]
+                    {
+                        InlineKeyboardButton.WithCallbackData("Другие анкеты", "/далее"),
+                    }
+                });
+                await SendMessageByUsername("mosinisom", "Жалоба на пользователя @" + args[0] + ":\n от @" + username, botClient, dbService);
+                await botClient.SendTextMessageAsync(
+                    chatId: message.Chat.Id,
+                    text: "Жалоба отправлена!",
+                    replyMarkup: inlineKeyboardMarkup,
+                    cancellationToken: default);
+                break;
             default:
+                inlineKeyboardMarkup = new(new[]
+                {
+                    new[]
+                    {
+                        InlineKeyboardButton.WithCallbackData("анкеты", "/далее"),
+                    }
+                });
                 await botClient.SendTextMessageAsync(
                     chatId: message.Chat.Id,
                     text: "Я не понял тебя :(",
+                    replyMarkup: inlineKeyboardMarkup,
                     cancellationToken: default);
                 break;
         }

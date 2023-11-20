@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.VisualBasic;
 
 public class DbService : IDisposable
 {
@@ -10,9 +9,11 @@ public class DbService : IDisposable
         _context = context;
     }
 
-    public async Task<List<Users>> GetUsersAsync()
+    public async Task<List<Users>> GetAllUsers()
     {
-        return await _context.Users.ToListAsync();
+        return await _context.Users
+            .FromSqlRaw("SELECT * FROM users WHERE chat_id NOT IN (SELECT chat_id FROM bannedusers)")
+            .ToListAsync();
     }
 
     public async Task<Users?> GetUserByChatId(long chatId)
@@ -128,9 +129,23 @@ public class DbService : IDisposable
         return student;
     }
 
+    public async Task BanUser(BannedUsers bannedUser)
+    {
+        await _context.BannedUsers.AddAsync(bannedUser);
+        await _context.SaveChangesAsync();
+    }
+
+
+    public async Task<List<BannedUsers>> GetAllBannedUsers()
+    {
+        return await _context.BannedUsers.ToListAsync();
+    }
+
     public async Task<List<Students>> GetAllStudents()
     {
-        return await _context.Students.ToListAsync();
+        return await _context.Students
+            .FromSqlRaw("SELECT * FROM students WHERE user_id NOT IN (SELECT user_id FROM users WHERE chat_id IN (SELECT chat_id FROM bannedusers))")
+            .ToListAsync();
     }
 
     public async Task SendMessage(Messages message)
