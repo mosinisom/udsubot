@@ -14,9 +14,6 @@ public class DataContext : DbContext
         optionsBuilder.UseNpgsql(_configuration.GetConnectionString("ConnectionString"));
     }
 
-
-
-
     public DbSet<Institutes> Institutes { get; set; }
     public DbSet<Likes> Likes { get; set; }
     public DbSet<Messages> Messages { get; set; }
@@ -24,6 +21,7 @@ public class DataContext : DbContext
     public DbSet<Students> Students { get; set; }
     public DbSet<Users> Users { get; set; }
     public DbSet<StateOfBot> StateOfBot { get; set; }
+    public DbSet<BannedUsers> BannedUsers { get; set; }
     // onmodelcreating
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -182,7 +180,29 @@ public class DataContext : DbContext
 
             });
 
+            modelBuilder.Entity<BannedUsers>(entity =>
+            {
+                entity.HasKey(e => e.Banned_id)
+                    .HasName("bannedusers_pkey");
 
+                entity.ToTable("bannedusers");
+
+                entity.Property(e => e.Banned_id)
+                    .HasColumnName("banned_id")
+                    .HasDefaultValueSql("nextval('bannedusers_banned_id_seq'::regclass)");
+
+                entity.Property(e => e.Username)
+                    .IsRequired()
+                    .HasMaxLength(100)
+                    .HasColumnName("username");
+
+                entity.Property(e => e.Chat_id).HasColumnName("chat_id");
+
+                entity.Property(e => e.Reason)
+                    .IsRequired()
+                    .HasMaxLength(1000)
+                    .HasColumnName("reason");
+            });
 
         });
     }

@@ -118,9 +118,9 @@ public class DbService : IDisposable
     public async Task<Students?> GetOneRandomStudent(string fromUsername)
     {
         Students? student = await _context.Students
-            .FromSqlRaw("SELECT * FROM students WHERE telegram_link != {0} ORDER BY RANDOM() LIMIT 1", fromUsername)
+            .FromSqlRaw("SELECT * FROM students WHERE telegram_link != {0} AND user_id NOT IN (SELECT user_id FROM users WHERE chat_id IN (SELECT chat_id FROM bannedusers)) ORDER BY RANDOM() LIMIT 1", fromUsername)
             .FirstOrDefaultAsync();
-
+            
         student ??= await _context.Students
                 .FromSqlRaw("SELECT * FROM students ORDER BY RANDOM() LIMIT 1")
                 .FirstOrDefaultAsync();
