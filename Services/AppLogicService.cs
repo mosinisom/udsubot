@@ -72,6 +72,61 @@ public class AppLogicService
             cancellationToken: default);
     }
 
+    public async Task SendProfile(long chatId, string whoUsername, ITelegramBotClient botClient, DbService dbService)
+    {
+        Students? student = await dbService.GetStudentByTelegramLink(whoUsername);
+        if (student == null)
+            return;
+
+        InlineKeyboardMarkup inlineKeyboardMarkup = new(new[]
+        {
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData("Жалоба", "/жалоба " + student.TelegramLink),
+            },
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData("Другие анкеты", "/далее"),
+            }
+        });
+
+        await botClient.SendPhotoAsync(
+            chatId: chatId,
+            photo: InputFile.FromFileId(GetPhotoPath(student.TelegramLink, dbService).Result),
+            caption: student.Name + ", " + student.Year + " курс " + InstituteDictionary[student.Institute_ID] + "\n" + student.Description + "\n" + "Количество лайков: " + await dbService.GetLikesCount(student.TelegramLink),
+            replyMarkup: inlineKeyboardMarkup,
+            cancellationToken: default);
+    }
+
+    public async Task SendProfile(string fromUsername, string whoUsername, ITelegramBotClient botClient, DbService dbService)
+    {
+        Users? user = await dbService.GetUserByTelegramLink(fromUsername);
+
+        Students? studentWho = await dbService.GetStudentByTelegramLink(whoUsername);
+        if (studentWho == null)
+            return;
+
+        InlineKeyboardMarkup inlineKeyboardMarkup = new(new[]
+        {
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData("Жалоба", "/жалоба " + studentWho.TelegramLink),
+            },
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData("Другие анкеты", "/далее"),
+            }
+        });
+
+        await botClient.SendPhotoAsync(
+            chatId: user.Chat_ID,
+            photo: InputFile.FromFileId(GetPhotoPath(studentWho.TelegramLink, dbService).Result),
+            caption: studentWho.Name + ", " + studentWho.Year + " курс " + InstituteDictionary[studentWho.Institute_ID] + "\n" + studentWho.Description + "\n" + "Количество лайков: " + await dbService.GetLikesCount(studentWho.TelegramLink),
+            replyMarkup: inlineKeyboardMarkup,
+            cancellationToken: default);
+    }
+
+
     public async Task BlockUser(string telegramlink, DbService dbService)
     {
         Users user = await dbService.GetUserByTelegramLink(telegramlink);
@@ -143,6 +198,25 @@ public class AppLogicService
             Reason = reason
         };
         await dbService.BanUser(bannedUser);
+    }
+
+    public async Task UnbanUser(string telegramlink, DbService dbService)
+    {
+        Users? user = await dbService.GetUserByTelegramLink(telegramlink);
+        if (user == null)
+            return;
+
+        Students? student = await dbService.GetStudentByTelegramLink(telegramlink);
+        if (student == null)
+            return;
+
+        BannedUsers bannedUser = new()
+        {
+            Chat_id = user.Chat_ID,
+            Username = student.TelegramLink,
+            Reason = ""
+        };
+        await dbService.UnbanUser(bannedUser);
     }
 
     public async Task AddStudentCardNumber(long chat_id, long student_card_number, DbService dbService)
@@ -276,15 +350,10 @@ public class AppLogicService
             Date = DateTime.Now
         };
 
-        InlineKeyboardMarkup inlineKeyboardMarkup = new(new[]
-        {
-            new[]
-            {
-                InlineKeyboardButton.WithCallbackData("Другие анкеты", "/далее"),
-            }
-        });
         await dbService.LikeStudent(like);
-        await SendMessageByUsername(username, "Вам пришёл лайк от @" + student1.TelegramLink + "!", botClient, dbService, inlineKeyboardMarkup);
+        await SendMessageByUsername(username, "Вам пришёл лайк от @" + student1.TelegramLink + "!", botClient, dbService);
+        await SendProfile(username, student1.TelegramLink, botClient, dbService);
+
     }
 
     public async Task Like(long chatId, int student_id, DbService dbService, ITelegramBotClient botClient)
@@ -390,10 +459,26 @@ public class AppLogicService
                 if (username != "mosinisom")
                     break;
 
-                await BanUser(args[0], args[1], dbService);
+                string reason = "";
+                for (int i = 1; i < args.Length; i++)
+                {
+                    reason += args[i] + " ";
+                }
+
+                await BanUser(args[0], reason, dbService);
                 await botClient.SendTextMessageAsync(
                     chatId: message.Chat.Id,
                     text: "Вы забанили пользователя с ником " + args[0],
+                    cancellationToken: default);
+                break;
+            case "/unban":
+                if (username != "mosinisom")
+                    break;
+
+                await UnbanUser(args[0], dbService);
+                await botClient.SendTextMessageAsync(
+                    chatId: message.Chat.Id,
+                    text: "Вы разбанили пользователя с ником " + args[0],
                     cancellationToken: default);
                 break;
             case "/mylikes":
@@ -473,6 +558,11 @@ public class AppLogicService
                     chatId: message.Chat.Id,
                     text: "Сообщение всем отправлено!",
                     cancellationToken: default);
+                break;
+            case "/profile":
+
+
+                await SendProfile(message.Chat.Id, args[0], botClient, dbService);
                 break;
             case "/жалоба":
                 inlineKeyboardMarkup = new(new[]
@@ -673,6 +763,11 @@ public class AppLogicService
                 break;
 
             case (int)stateEnum.waiting_for_message_to_another_student:
+
+                await SendMessageByUsername(state.Data, message.Text + "\n(от @" + message.Chat.Username + ")", botClient, dbService);
+                await SendProfile(state.Data, message.Chat.Username, botClient, dbService);
+                await SetState(message.Chat.Id, (int)stateEnum.default_state, "", dbService);
+
                 inlineKeyboardMarkup = new(new[]
                 {
                         new[]
@@ -680,9 +775,6 @@ public class AppLogicService
                             InlineKeyboardButton.WithCallbackData("Смотреть дальше", "/далее"),
                         }
                 });
-
-                await SendMessageByUsername(state.Data, message.Text + "\n(от @" + message.Chat.Username + ")", botClient, dbService, inlineKeyboardMarkup);
-                await SetState(message.Chat.Id, (int)stateEnum.default_state, "", dbService);
 
                 await botClient.SendTextMessageAsync(
                     chatId: message.Chat.Id,

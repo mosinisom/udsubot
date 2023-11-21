@@ -3,12 +3,12 @@ using Microsoft.EntityFrameworkCore;
 public class DbService : IDisposable
 {
     private readonly DataContext _context;
-
     public DbService(DataContext context)
     {
         _context = context;
     }
 
+    
     public async Task<List<Users>> GetAllUsers()
     {
         return await _context.Users
@@ -118,20 +118,55 @@ public class DbService : IDisposable
 
     public async Task<Students?> GetOneRandomStudent(string fromUsername)
     {
+        if(await GetBannedUser(fromUsername) != null)
+        {
+            return await GetStudentByTelegramLink(fromUsername);
+            
+        }
+
         Students? student = await _context.Students
             .FromSqlRaw("SELECT * FROM students WHERE telegram_link != {0} AND user_id NOT IN (SELECT user_id FROM users WHERE chat_id IN (SELECT chat_id FROM bannedusers)) ORDER BY RANDOM() LIMIT 1", fromUsername)
             .FirstOrDefaultAsync();
-            
+
         student ??= await _context.Students
                 .FromSqlRaw("SELECT * FROM students ORDER BY RANDOM() LIMIT 1")
                 .FirstOrDefaultAsync();
-        
+
         return student;
     }
+
+    public async Task<BannedUsers?> GetBannedUser(string username)
+    {
+        return await _context.BannedUsers
+            .FirstOrDefaultAsync(b => b.Username == username);
+    }
+
+    // public async Task<Students?> GetOneRandomStudent(string username)
+    // {
+    //     using var context = GetDataContext();
+    //     Students? student = await context.Students
+    //         .FromSqlRaw("SELECT * FROM students WHERE telegram_link != {0} AND user_id NOT IN (SELECT user_id FROM users WHERE chat_id IN (SELECT chat_id FROM bannedusers)) ORDER BY RANDOM() LIMIT 1", username)
+    //         .FirstOrDefaultAsync();
+
+    //     student ??= await context.Students
+    //             .FromSqlRaw("SELECT * FROM students ORDER BY RANDOM() LIMIT 1")
+    //             .FirstOrDefaultAsync();
+
+    //     return student;
+    // }
 
     public async Task BanUser(BannedUsers bannedUser)
     {
         await _context.BannedUsers.AddAsync(bannedUser);
+        await _context.SaveChangesAsync();
+    }
+
+    public async Task UnbanUser(BannedUsers bannedUser)
+    {
+        if (bannedUser == null)
+            return;
+
+        _context.BannedUsers.Remove(bannedUser);
         await _context.SaveChangesAsync();
     }
 

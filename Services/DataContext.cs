@@ -9,6 +9,10 @@ public class DataContext : DbContext
         _configuration = configuration;
     }
 
+    // public DataContext(DbContextOptions<DataContext> options) : base(options)
+    // {
+    // }
+
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         optionsBuilder.UseNpgsql(_configuration.GetConnectionString("ConnectionString"));
