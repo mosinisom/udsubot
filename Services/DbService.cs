@@ -64,6 +64,13 @@ public class DbService : IDisposable
         await _context.SaveChangesAsync();
     }
 
+    public async Task<int> GetCountOfUsers()
+    {
+        return await _context.Users
+            .Where(u => u.HasAccess == true)
+            .CountAsync();
+    }
+
     public async Task<Users> GetUserByTelegramLink(string TelegramLink)
     {
         Students? student = await GetStudentByTelegramLink(TelegramLink);

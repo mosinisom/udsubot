@@ -32,15 +32,6 @@ public class AppLogicService
         { 14, "МКПО" }
     };
 
-    ReplyKeyboardMarkup replyKeyboardMarkup = new(new[]
-    {
-    new KeyboardButton[] { "/далее" },
-    })
-    {
-        ResizeKeyboard = true
-    };
-
-
     public async Task SendRandomProfile(long chatId, string fromUsername, ITelegramBotClient botClient, DbService dbService)
     {
         Students? student = await dbService.GetOneRandomStudent(fromUsername);
@@ -51,7 +42,7 @@ public class AppLogicService
         {
                         new[]
                         {
-                            InlineKeyboardButton.WithCallbackData("❤️", "/like " + student.TelegramLink),
+                            InlineKeyboardButton.WithCallbackData("❤️", "/лайкну " + student.TelegramLink),
                             InlineKeyboardButton.WithCallbackData("✉️", "/message " + student.TelegramLink)
                         },
                         new[]
@@ -351,7 +342,7 @@ public class AppLogicService
         };
 
         await dbService.LikeStudent(like);
-        await SendMessageByUsername(username, "Вам пришёл лайк от @" + student1.TelegramLink + "!", botClient, dbService);
+        await SendMessageByUsername(username, "❤️ Вам пришёл лайк от @" + student1.TelegramLink + "!", botClient, dbService);
         await SendProfile(username, student1.TelegramLink, botClient, dbService);
 
     }
@@ -381,6 +372,11 @@ public class AppLogicService
         await dbService.SetStateOfBot(chatId, state, data);
     }
 
+    public async Task<int> GetCountOfUsers(DbService dbService)
+    {
+        return await dbService.GetCountOfUsers();
+    }
+
     public async Task HandleCommand(string command, string[] args, Message message, ITelegramBotClient botClient, DbService dbService, string username)
     {
         switch (command)
@@ -399,7 +395,7 @@ public class AppLogicService
                 {
                         new[]
                         {
-                            InlineKeyboardButton.WithCallbackData("❤️", "/like mosinisom"),
+                            InlineKeyboardButton.WithCallbackData("❤️", "/лайкну mosinisom"),
                         }
                     });
 
@@ -409,6 +405,7 @@ public class AppLogicService
                     caption: "Саша Мосин, 3 курс ИМИТиФ, Прикладная информатика в юриспруденции. \n" +
                              "Мои основные корпуса: 4 и 6 \n" +
                              "Хочу подружиться с людьми из каждого института! Почти всегда меня можно встретить с улыбкой на лице)" + "\n" +
+                             "А ещё я очень люблю обниматься! \n" +
                              "Количество лайков: " + await dbService.GetLikesCount("mosinisom"),
                     // replyMarkup: inlineKeyboardMarkup,
                     cancellationToken: default);
@@ -431,8 +428,11 @@ public class AppLogicService
                     chatId: message.Chat.Id,
                     text: "Я умею:\n" +
                           "/help - показать это сообщение\n" +
-                          "/start - начать общение с ботом\n" +
-                          "/mylikes - показать количество лайков, которые вы получили\n",
+                          "/start - заполнить анкету заново (фото профиля изменить можно в любой момент, просто отправив его в чат)\n" +
+                          "/моилайки - показать количество лайков, которые вы получили\n" +
+                          "/мойпрофиль - показать вашу анкету\n" +
+                          "/жалоба ник_пользователя - отправить жалобу на пользователя\n" +
+                          "/далее - показать другие анкеты\n",
                     cancellationToken: default);
                 break;
             case "/block":
@@ -481,14 +481,14 @@ public class AppLogicService
                     text: "Вы разбанили пользователя с ником " + args[0],
                     cancellationToken: default);
                 break;
-            case "/mylikes":
+            case "/моилайки":
                 int likesCount = await dbService.GetLikesCount(message.Chat.Id);
                 await botClient.SendTextMessageAsync(
                     chatId: message.Chat.Id,
                     text: "Количество лайков: " + likesCount,
                     cancellationToken: default);
                 break;
-            case "/like":
+            case "/лайкну":
                 await Like(message.Chat.Id, args[0], dbService, botClient);
                 inlineKeyboardMarkup = new(new[]
                 {
@@ -503,7 +503,7 @@ public class AppLogicService
                     replyMarkup: inlineKeyboardMarkup,
                     cancellationToken: default);
                 break;
-            case "/myprofile":
+            case "/мойпрофиль":
                 Students? student = await dbService.GetStudentByChatId(message.Chat.Id);
                 if (student == null)
                     return;
@@ -559,9 +559,7 @@ public class AppLogicService
                     text: "Сообщение всем отправлено!",
                     cancellationToken: default);
                 break;
-            case "/profile":
-
-
+            case "/профиль":
                 await SendProfile(message.Chat.Id, args[0], botClient, dbService);
                 break;
             case "/жалоба":
@@ -577,6 +575,13 @@ public class AppLogicService
                     chatId: message.Chat.Id,
                     text: "Жалоба отправлена!",
                     replyMarkup: inlineKeyboardMarkup,
+                    cancellationToken: default);
+                break;
+            case "/getcount":
+                int count = await GetCountOfUsers(dbService);
+                await botClient.SendTextMessageAsync(
+                    chatId: message.Chat.Id,
+                    text: "Количество пользователей: " + count,
                     cancellationToken: default);
                 break;
             default:
@@ -740,7 +745,8 @@ public class AppLogicService
 
                 await botClient.SendTextMessageAsync(
                     chatId: message.Chat.Id,
-                    text: "Спасибо за заполнение анкеты! Вы всегда можете полюбоваться ей через \"/myprofile\", а заполнить заново командой \"/start\":",
+                    text: "Спасибо за заполнение анкеты! Вы всегда можете полюбоваться ей через \"/мойпрофиль\", заполнить заново командой \"/start\". \n" 
+                        + "Список команд \"/help\".",
                     cancellationToken: default);
 
                 inlineKeyboardMarkup = new(new[]
@@ -764,7 +770,7 @@ public class AppLogicService
 
             case (int)stateEnum.waiting_for_message_to_another_student:
 
-                await SendMessageByUsername(state.Data, message.Text + "\n(от @" + message.Chat.Username + ")", botClient, dbService);
+                await SendMessageByUsername(state.Data, message.Text + "\n(✉️ от @" + message.Chat.Username + ")", botClient, dbService);
                 await SendProfile(state.Data, message.Chat.Username, botClient, dbService);
                 await SetState(message.Chat.Id, (int)stateEnum.default_state, "", dbService);
 
