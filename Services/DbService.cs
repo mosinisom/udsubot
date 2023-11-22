@@ -24,11 +24,28 @@ public class DbService : IDisposable
 
     public async Task AddUser(long Chat_ID, string username)
     {
+        // транзакции
         Users? user = await GetUserByChatId(Chat_ID);
         if (user != null)
         {
             user.HasAccess = false;
             await UpdateUser(user);
+
+            if (await GetStudentByUserId(user.User_ID) == null)
+            {
+                user = await GetUserByChatId(Chat_ID);
+                Students stud = new()
+                {
+                    Name = username,
+                    TelegramLink = username,
+                    User_ID = user.User_ID,
+                    Institute_ID = 0,
+                    Year = 0,
+                    Description = ""
+                };
+
+                await _context.Students.AddAsync(stud);
+            }
             return;
         }
 
@@ -39,6 +56,10 @@ public class DbService : IDisposable
             RegistrationDate = DateTime.Now,
             StudentCardNumber = 0
         };
+        await _context.Users.AddAsync(user);
+        await _context.SaveChangesAsync();
+
+        user = await GetUserByChatId(Chat_ID);
 
         Students student = new()
         {
@@ -50,7 +71,6 @@ public class DbService : IDisposable
             Description = ""
         };
 
-        await _context.Users.AddAsync(user);
         await _context.Students.AddAsync(student);
         await _context.SaveChangesAsync();
     }
@@ -132,7 +152,7 @@ public class DbService : IDisposable
         }
 
         Students? student = await _context.Students
-            .FromSqlRaw("SELECT * FROM students WHERE telegram_link != {0} AND user_id NOT IN (SELECT user_id FROM users WHERE chat_id IN (SELECT chat_id FROM bannedusers)) ORDER BY RANDOM() LIMIT 1", fromUsername)
+            .FromSqlRaw("SELECT * FROM students WHERE telegram_link != {0} AND user_id NOT IN (SELECT user_id FROM users WHERE chat_id IN (SELECT chat_id FROM bannedusers)) AND user_id IN (SELECT user_id FROM photos) ORDER BY RANDOM() LIMIT 1", fromUsername)
             .FirstOrDefaultAsync();
 
         student ??= await _context.Students
@@ -147,20 +167,6 @@ public class DbService : IDisposable
         return await _context.BannedUsers
             .FirstOrDefaultAsync(b => b.Username == username);
     }
-
-    // public async Task<Students?> GetOneRandomStudent(string username)
-    // {
-    //     using var context = GetDataContext();
-    //     Students? student = await context.Students
-    //         .FromSqlRaw("SELECT * FROM students WHERE telegram_link != {0} AND user_id NOT IN (SELECT user_id FROM users WHERE chat_id IN (SELECT chat_id FROM bannedusers)) ORDER BY RANDOM() LIMIT 1", username)
-    //         .FirstOrDefaultAsync();
-
-    //     student ??= await context.Students
-    //             .FromSqlRaw("SELECT * FROM students ORDER BY RANDOM() LIMIT 1")
-    //             .FirstOrDefaultAsync();
-
-    //     return student;
-    // }
 
     public async Task BanUser(BannedUsers bannedUser)
     {

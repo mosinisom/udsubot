@@ -3,6 +3,7 @@ using Telegram.Bot.Exceptions;
 using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
+using Telegram.Bot.Types.ReplyMarkups;
 
 class TelegramService
 {
@@ -25,6 +26,7 @@ class TelegramService
 
     public void Start()
     {
+        _log.LogInformation("TelegramService started");
         // StartReceiving does not block the caller thread. Receiving is done on the ThreadPool.
         ReceiverOptions receiverOptions = new()
         {
@@ -41,6 +43,7 @@ class TelegramService
 
     async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
     {
+        _log.LogInformation("Received update {UpdateId}", update.Id);
         try
         {
             using var scope = _scopeFactory.CreateScope();
@@ -77,7 +80,7 @@ class TelegramService
                     await botClient.SendPhotoAsync(
                         chatId: chatId,
                         photo: InputFile.FromFileId(_appLogic.GetPhotoPath(chatId, dbService).Result),
-                        caption: $"{username}, это Ваше фото профиля! Если не нравится, пришлите другое :)",
+                        caption: $"{username}, это Ваше фото профиля! Если не нравится, всегда можете прислать другое (даже если в этот момент не заполняете анкету) \n :)",
                         cancellationToken: cancellationToken);
 
                     StateOfBot state = await _appLogic.GetState(chatId, dbService);
@@ -112,10 +115,51 @@ class TelegramService
                 }
             }
         }
+        catch (ApiRequestException ex) when (ex.ErrorCode == 403)
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var dbService = scope.ServiceProvider.GetRequiredService<DbService>();
+            _log.LogWarning("The bot was blocked by the user.");
+
+            InlineKeyboardMarkup inlineKeyboardMarkup = new(new[]
+            {
+                new[]
+                {
+                    InlineKeyboardButton.WithCallbackData("Да!!!", "/далее"),
+                }
+            });
+
+            if (update.Type == UpdateType.CallbackQuery)
+            {
+                var callbackQuery = update.CallbackQuery;
+                var chatId = callbackQuery.Message.Chat.Id;
+                var messageId = callbackQuery.Message.MessageId;
+                await botClient.EditMessageReplyMarkupAsync(chatId, messageId, replyMarkup: null);
+
+                await _appLogic.SetState(chatId, 0, "", dbService);
+                await botClient.SendTextMessageAsync(
+                    chatId: chatId,
+                    text: "Тот пользователь заблокировал бота, продолжить искать друзей?",
+                    replyMarkup: inlineKeyboardMarkup,
+                    cancellationToken: cancellationToken);
+            }
+            else if (update.Message != null)
+            {
+                var message = update.Message;
+                var chatId = message.Chat.Id;
+                await _appLogic.SetState(chatId, 0, "", dbService);
+                await botClient.SendTextMessageAsync(
+                    chatId: chatId,
+                    text: "Этот пользователь заблокировал бота, продолжить искать друзей?",
+                    replyMarkup: inlineKeyboardMarkup,
+                    cancellationToken: cancellationToken);
+            }
+        }
         catch (Exception ex)
         {
-            Console.WriteLine($"Произошла ошибка в TelegramService.HandleUpdateAsync: {ex.Message}");
+            _log.LogError(ex, "Error handling update {UpdateId}", update.Id);
         }
+
     }
 
     Task HandlePollingErrorAsync(ITelegramBotClient botClient, Exception exception, CancellationToken cancellationToken)

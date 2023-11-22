@@ -166,48 +166,48 @@ public class DataContext : DbContext
 
             entity.Property(e => e.User_ID).HasColumnName("user_id");
 
-            modelBuilder.Entity<StateOfBot>(entity =>
-            {
-                entity.HasKey(e => e.StateOfBot_ID)
-                    .HasName("stateofbot_pkey");
+        });
 
-                entity.ToTable("stateofbot");
+        modelBuilder.Entity<StateOfBot>(entity =>
+        {
+            entity.HasKey(e => e.StateOfBot_ID)
+                .HasName("stateofbot_pkey");
 
-                entity.Property(e => e.StateOfBot_ID)
-                    .HasColumnName("stateofbot_id")
-                    .HasDefaultValueSql("nextval('stateofbot_stateofbot_id_seq'::regclass)");
+            entity.ToTable("stateofbot");
 
-                entity.Property(e => e.Chat_ID).HasColumnName("chat_id");
+            entity.Property(e => e.StateOfBot_ID)
+                .HasColumnName("stateofbot_id")
+                .HasDefaultValueSql("nextval('stateofbot_stateofbot_id_seq'::regclass)");
 
-                entity.Property(e => e.State).HasColumnName("state");
-                entity.Property(e => e.Data).HasColumnName("data");
+            entity.Property(e => e.Chat_ID).HasColumnName("chat_id");
 
-            });
+            entity.Property(e => e.State).HasColumnName("state");
+            entity.Property(e => e.Data).HasColumnName("data");
 
-            modelBuilder.Entity<BannedUsers>(entity =>
-            {
-                entity.HasKey(e => e.Banned_id)
-                    .HasName("bannedusers_pkey");
+        });
 
-                entity.ToTable("bannedusers");
+        modelBuilder.Entity<BannedUsers>(entity =>
+        {
+            entity.HasKey(e => e.Banned_id)
+                .HasName("bannedusers_pkey");
 
-                entity.Property(e => e.Banned_id)
-                    .HasColumnName("banned_id")
-                    .HasDefaultValueSql("nextval('bannedusers_banned_id_seq'::regclass)");
+            entity.ToTable("bannedusers");
 
-                entity.Property(e => e.Username)
-                    .IsRequired()
-                    .HasMaxLength(100)
-                    .HasColumnName("username");
+            entity.Property(e => e.Banned_id)
+                .HasColumnName("banned_id")
+                .HasDefaultValueSql("nextval('bannedusers_banned_id_seq'::regclass)");
 
-                entity.Property(e => e.Chat_id).HasColumnName("chat_id");
+            entity.Property(e => e.Username)
+                .IsRequired()
+                .HasMaxLength(100)
+                .HasColumnName("username");
 
-                entity.Property(e => e.Reason)
-                    .IsRequired()
-                    .HasMaxLength(1000)
-                    .HasColumnName("reason");
-            });
+            entity.Property(e => e.Chat_id).HasColumnName("chat_id");
 
+            entity.Property(e => e.Reason)
+                .IsRequired()
+                .HasMaxLength(1000)
+                .HasColumnName("reason");
         });
     }
 }
