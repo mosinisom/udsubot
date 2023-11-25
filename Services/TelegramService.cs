@@ -139,7 +139,7 @@ class TelegramService
                 await _appLogic.SetState(chatId, 0, "", dbService);
                 await botClient.SendTextMessageAsync(
                     chatId: chatId,
-                    text: "Тот пользователь заблокировал бота, продолжить искать друзей?",
+                    text: "Этот пользователь заблокировал бота, продолжить искать друзей?",
                     replyMarkup: inlineKeyboardMarkup,
                     cancellationToken: cancellationToken);
             }
@@ -154,6 +154,11 @@ class TelegramService
                     replyMarkup: inlineKeyboardMarkup,
                     cancellationToken: cancellationToken);
             }
+            else
+            {
+                _log.LogError(ex, "Error handling update {UpdateId}", update.Id);
+            }
+            
         }
         catch (Exception ex)
         {
