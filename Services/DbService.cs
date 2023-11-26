@@ -8,7 +8,7 @@ public class DbService : IDisposable
         _context = context;
     }
 
-    
+
     public async Task<List<Users>> GetAllUsers()
     {
         return await _context.Users
@@ -145,14 +145,21 @@ public class DbService : IDisposable
 
     public async Task<Students?> GetOneRandomStudent(string fromUsername)
     {
-        if(await GetBannedUser(fromUsername) != null)
+        if (await GetBannedUser(fromUsername) != null)
         {
             return await GetStudentByTelegramLink(fromUsername);
-            
+
         }
 
         Students? student = await _context.Students
-            .FromSqlRaw("SELECT * FROM students WHERE telegram_link != {0} AND user_id NOT IN (SELECT user_id FROM users WHERE chat_id IN (SELECT chat_id FROM bannedusers)) AND user_id IN (SELECT user_id FROM photos) ORDER BY RANDOM() LIMIT 1", fromUsername)
+            .FromSqlRaw(
+                "SELECT * FROM students " +
+                "WHERE telegram_link != {0} " +
+                "AND user_id NOT IN (SELECT user_id FROM users WHERE chat_id IN (SELECT chat_id FROM bannedusers)) " +
+                "AND user_id IN (SELECT user_id FROM photos) " +
+                "ORDER BY RANDOM() " +
+                "LIMIT 1",
+                fromUsername)
             .FirstOrDefaultAsync();
 
         student ??= await _context.Students
@@ -179,8 +186,28 @@ public class DbService : IDisposable
         if (bannedUser == null)
             return;
 
-        _context.BannedUsers.Remove(bannedUser);
+        BannedUsers? user = await _context.BannedUsers
+            .FirstOrDefaultAsync(b => b.Chat_id == bannedUser.Chat_id);
+
+        if (user == null)
+            return;
+
+        user.Username = "";
+        user.Chat_id = 0;
+
+        _context.BannedUsers.Update(user);
         await _context.SaveChangesAsync();
+    }
+
+    public async Task<bool> IsUserBanned(string username)
+    {
+        BannedUsers? user = await _context.BannedUsers
+            .FirstOrDefaultAsync(b => b.Username == username);
+
+        if (user == null)
+            return false;
+
+        return true;
     }
 
 

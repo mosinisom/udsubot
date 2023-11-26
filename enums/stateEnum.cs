@@ -6,5 +6,6 @@ enum stateEnum
     waiting_for_student_year,
     waiting_for_student_description,
     waiting_for_student_photo,
-    waiting_for_message_to_another_student
+    waiting_for_message_to_another_student,
+    user_does_not_have_username
 }

@@ -62,7 +62,14 @@ class TelegramService
                     var args = callbackData.Split(" ")[1..];
                     await _appLogic.HandleCommand(command, args, callbackQuery.Message, botClient, dbService, callbackQuery.From.Username);
                 }
-                await botClient.EditMessageReplyMarkupAsync(chatId, messageId, replyMarkup: null);
+                try
+                {
+                    await botClient.EditMessageReplyMarkupAsync(chatId, messageId, replyMarkup: null);
+                }
+                catch (ApiRequestException ex) when (ex.ErrorCode == 400 && ex.Message.Contains("message is not modified"))
+                {
+                    _log.LogInformation("Message is not modified");
+                }
             }
             else if (update.Message != null)
             {
@@ -158,7 +165,7 @@ class TelegramService
             {
                 _log.LogError(ex, "Error handling update {UpdateId}", update.Id);
             }
-            
+
         }
         catch (Exception ex)
         {
