@@ -152,14 +152,13 @@ public class DbService : IDisposable
         }
 
         Students? student = await _context.Students
-            .FromSqlRaw(
-                "SELECT * FROM students " +
-                "WHERE telegram_link != {0} " +
-                "AND user_id NOT IN (SELECT user_id FROM users WHERE chat_id IN (SELECT chat_id FROM bannedusers)) " +
-                "AND user_id IN (SELECT user_id FROM photos) " +
-                "ORDER BY RANDOM() " +
-                "LIMIT 1",
-                fromUsername)
+            .FromSqlInterpolated($@"
+                SELECT * FROM students 
+                WHERE telegram_link != {fromUsername} 
+                AND user_id NOT IN (SELECT user_id FROM users WHERE chat_id IN (SELECT chat_id FROM bannedusers)) 
+                AND user_id IN (SELECT user_id FROM photos) 
+                ORDER BY RANDOM() 
+                LIMIT 1")
             .FirstOrDefaultAsync();
 
         student ??= await _context.Students

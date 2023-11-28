@@ -37,34 +37,36 @@ public class AppLogicService
     {
         try
         {
-            _log.LogInformation("User {Username} requested random profile", fromUsername);
+            _log.LogInformation("User {Username} requested random profile in chat {ChatId}", fromUsername, chatId);
             Students? student = await dbService.GetOneRandomStudent(fromUsername);
             if (student == null)
                 return;
 
             InlineKeyboardMarkup inlineKeyboardMarkup = new(new[]
             {
-            new[]
-            {
-                InlineKeyboardButton.WithCallbackData("❤️", "/лайкну " + student.TelegramLink),
-                InlineKeyboardButton.WithCallbackData("✉️", "/message " + student.TelegramLink)
-            },
-            new[]
-            {
-                InlineKeyboardButton.WithCallbackData("Жалоба", "/жалоба " + student.TelegramLink),
-            },
-            new[]
-            {
-                InlineKeyboardButton.WithCallbackData("Другие анкеты", "/далее"),
-            }
-        });
+                new[]
+                {
+                    InlineKeyboardButton.WithCallbackData("❤️", "/likehim " + student.TelegramLink),
+                    InlineKeyboardButton.WithCallbackData("✉️", "/message " + student.TelegramLink)
+                },
+                new[]
+                {
+                    InlineKeyboardButton.WithCallbackData("Жалоба", "/complain " + student.TelegramLink),
+                },
+                new[]
+                {
+                    InlineKeyboardButton.WithCallbackData("Другие анкеты", "/next"),
+                }
+            });
 
-            if (InputFile.FromFileId(GetPhotoPath(student.TelegramLink, dbService).Result) != null)
+            var photoPath = await GetPhotoPath(student.TelegramLink, dbService);
+            if (photoPath != null)
             {
+                var inputFile = InputFile.FromFileId(photoPath);
                 await botClient.SendPhotoAsync(
                     chatId: chatId,
-                    photo: InputFile.FromFileId(GetPhotoPath(student.TelegramLink, dbService).Result),
-                    caption: student.Name + ", " + student.Year + " курс " + InstituteDictionary[student.Institute_ID] + "\n" + student.Description + "\n" + "Количество лайков: " + await dbService.GetLikesCount(student.TelegramLink),
+                    photo: inputFile,
+                    caption: $"{student.Name}, {student.Year} курс {InstituteDictionary[student.Institute_ID]}\n{student.Description}\nКоличество лайков: {await dbService.GetLikesCount(student.TelegramLink)}",
                     replyMarkup: inlineKeyboardMarkup,
                     cancellationToken: default);
             }
@@ -72,7 +74,7 @@ public class AppLogicService
             {
                 await botClient.SendTextMessageAsync(
                     chatId: chatId,
-                    text: student.Name + ", " + student.Year + " курс " + InstituteDictionary[student.Institute_ID] + "\n" + student.Description + "\n" + "Количество лайков: " + await dbService.GetLikesCount(student.TelegramLink),
+                    text: $"{student.Name}, {student.Year} курс {InstituteDictionary[student.Institute_ID]}\n{student.Description}\nКоличество лайков: {await dbService.GetLikesCount(student.TelegramLink)}",
                     replyMarkup: inlineKeyboardMarkup,
                     cancellationToken: default);
             }
@@ -80,13 +82,13 @@ public class AppLogicService
         catch (Exception e)
         {
             InlineKeyboardMarkup inlineKeyboardMarkup = new(new[]
-                {
+            {
                 new[]
                 {
-                    InlineKeyboardButton.WithCallbackData("Другие анкеты", "/далее"),
+                    InlineKeyboardButton.WithCallbackData("Другие анкеты", "/next"),
                 }
             });
-            _log.LogError(e.Message);
+            _log.LogError(e.Message, "Error while sending random profile to user {Username} in chat {ChatId}", fromUsername, chatId);
             await botClient.SendTextMessageAsync(
                 chatId: chatId,
                 text: "Произошла ошибка, попробуйте ещё раз!",
@@ -105,30 +107,39 @@ public class AppLogicService
         {
             new[]
             {
-                InlineKeyboardButton.WithCallbackData("Жалоба", "/жалоба " + student.TelegramLink),
+                InlineKeyboardButton.WithCallbackData("Жалоба", "/complain " + student.TelegramLink),
             },
             new[]
             {
-                InlineKeyboardButton.WithCallbackData("Другие анкеты", "/далее"),
+                InlineKeyboardButton.WithCallbackData("Другие анкеты", "/next"),
             }
         });
 
-        if(InputFile.FromFileId(GetPhotoPath(student.TelegramLink, dbService).Result) != null)
+        try
         {
-            await botClient.SendPhotoAsync(
-                chatId: chatId,
-                photo: InputFile.FromFileId(GetPhotoPath(student.TelegramLink, dbService).Result),
-                caption: student.Name + ", " + student.Year + " курс " + InstituteDictionary[student.Institute_ID] + "\n" + student.Description + "\n" + "Количество лайков: " + await dbService.GetLikesCount(student.TelegramLink),
-                replyMarkup: inlineKeyboardMarkup,
-                cancellationToken: default);
+            var photoPath = await GetPhotoPath(student.TelegramLink, dbService);
+            if (photoPath != null)
+            {
+                var inputFile = InputFile.FromFileId(photoPath);
+                await botClient.SendPhotoAsync(
+                    chatId: chatId,
+                    photo: inputFile,
+                    caption: $"{student.Name}, {student.Year} курс {InstituteDictionary[student.Institute_ID]}\n{student.Description}\nКоличество лайков: {await dbService.GetLikesCount(student.TelegramLink)}",
+                    replyMarkup: inlineKeyboardMarkup,
+                    cancellationToken: default);
+            }
+            else
+            {
+                await botClient.SendTextMessageAsync(
+                    chatId: chatId,
+                    text: $"{student.Name}, {student.Year} курс {InstituteDictionary[student.Institute_ID]}\n{student.Description}\nКоличество лайков: {await dbService.GetLikesCount(student.TelegramLink)}",
+                    replyMarkup: inlineKeyboardMarkup,
+                    cancellationToken: default);
+            }
         }
-        else
+        catch (Exception ex)
         {
-            await botClient.SendTextMessageAsync(
-                chatId: chatId,
-                text: student.Name + ", " + student.Year + " курс " + InstituteDictionary[student.Institute_ID] + "\n" + student.Description + "\n" + "Количество лайков: " + await dbService.GetLikesCount(student.TelegramLink),
-                replyMarkup: inlineKeyboardMarkup,
-                cancellationToken: default);
+            _log.LogError(ex, "Error when sending message for user {Username}", chatId);
         }
     }
 
@@ -144,30 +155,42 @@ public class AppLogicService
         {
             new[]
             {
-                InlineKeyboardButton.WithCallbackData("Жалоба", "/жалоба " + studentWho.TelegramLink),
+                InlineKeyboardButton.WithCallbackData("Жалоба", "/complain " + studentWho.TelegramLink),
             },
             new[]
             {
-                InlineKeyboardButton.WithCallbackData("Другие анкеты", "/далее"),
+                InlineKeyboardButton.WithCallbackData("Другие анкеты", "/next"),
             }
         });
 
-        if(InputFile.FromFileId(GetPhotoPath(studentWho.TelegramLink, dbService).Result) != null)
+        try
         {
-            await botClient.SendPhotoAsync(
-                chatId: user.Chat_ID,
-                photo: InputFile.FromFileId(GetPhotoPath(studentWho.TelegramLink, dbService).Result),
-                caption: studentWho.Name + ", " + studentWho.Year + " курс " + InstituteDictionary[studentWho.Institute_ID] + "\n" + studentWho.Description + "\n" + "Количество лайков: " + await dbService.GetLikesCount(studentWho.TelegramLink),
-                replyMarkup: inlineKeyboardMarkup,
-                cancellationToken: default);
+            var photoPath = await GetPhotoPath(studentWho.TelegramLink, dbService);
+            if (photoPath != null)
+            {
+                var inputFile = InputFile.FromFileId(photoPath);
+                if (inputFile != null)
+                {
+                    await botClient.SendPhotoAsync(
+                        chatId: user.Chat_ID,
+                        photo: inputFile,
+                        caption: $"{studentWho.Name}, {studentWho.Year} курс {InstituteDictionary[studentWho.Institute_ID]}\n{studentWho.Description}\nКоличество лайков: {await dbService.GetLikesCount(studentWho.TelegramLink)}",
+                        replyMarkup: inlineKeyboardMarkup,
+                        cancellationToken: default);
+                }
+            }
+            else
+            {
+                await botClient.SendTextMessageAsync(
+                    chatId: user.Chat_ID,
+                    text: $"{studentWho.Name}, {studentWho.Year} курс {InstituteDictionary[studentWho.Institute_ID]}\n{studentWho.Description}\nКоличество лайков: {await dbService.GetLikesCount(studentWho.TelegramLink)}",
+                    replyMarkup: inlineKeyboardMarkup,
+                    cancellationToken: default);
+            }
         }
-        else
+        catch (Exception ex)
         {
-            await botClient.SendTextMessageAsync(
-                chatId: user.Chat_ID,
-                text: studentWho.Name + ", " + studentWho.Year + " курс " + InstituteDictionary[studentWho.Institute_ID] + "\n" + studentWho.Description + "\n" + "Количество лайков: " + await dbService.GetLikesCount(studentWho.TelegramLink),
-                replyMarkup: inlineKeyboardMarkup,
-                cancellationToken: default);
+            _log.LogError(ex, "Error when sending message for user {Username}", user.Chat_ID);
         }
     }
 
@@ -318,7 +341,7 @@ public class AppLogicService
         Students? student = await dbService.GetStudentByChatId(chat_id);
         if (student == null)
         {
-            _log.LogInformation("User can't add his institute");
+            _log.LogInformation("User can't add his institute in chat {ChatId}", chat_id);
             return;
         }
 
@@ -409,8 +432,6 @@ public class AppLogicService
         await dbService.LikeStudent(like);
         await SendMessageByUsername(username, "❤️ Вам пришёл лайк от @" + student1.TelegramLink + "!", botClient, dbService);
         await SendProfile(username, student1.TelegramLink, botClient, dbService);
-        _log.LogInformation("User {Username} liked {Username2}", student1.TelegramLink, username);
-
     }
 
     public async Task<StateOfBot> GetState(long chatId, DbService dbService)
@@ -454,39 +475,41 @@ public class AppLogicService
 
                 await Task.Delay(1750);
 
-                InlineKeyboardMarkup inlineKeyboardMarkup = new(new[]
+                try
                 {
-                    new[]
+                    var photoPath = await GetPhotoPath("mosinisom", dbService);
+                    if (photoPath != null)
                     {
-                        InlineKeyboardButton.WithCallbackData("❤️", "/лайкну mosinisom"),
+                        var inputFile = InputFile.FromFileId(photoPath);
+                        if (inputFile != null)
+                        {
+                            await botClient.SendPhotoAsync(
+                                chatId: message.Chat.Id,
+                                photo: inputFile,
+                                caption: "Саша Мосин, 3 курс ИМИТиФ, Прикладная информатика в юриспруденции. \n" +
+                                         "Мои основные корпуса: 4 и 6 \n" +
+                                         "Хочу подружиться с людьми из каждого института! Почти всегда меня можно встретить с улыбкой на лице)" + "\n" +
+                                         "А ещё я очень люблю обниматься! \n" +
+                                         "Количество лайков: " + await dbService.GetLikesCount("mosinisom"),
+                                cancellationToken: default);
+                        }
                     }
-                });
-
-                if (InputFile.FromFileId(GetPhotoPath("mosinisom", dbService).Result) != null)
-                {
-                    await botClient.SendPhotoAsync(
-                        chatId: message.Chat.Id,
-                        photo: InputFile.FromFileId(GetPhotoPath("mosinisom", dbService).Result),
-                        caption: "Саша Мосин, 3 курс ИМИТиФ, Прикладная информатика в юриспруденции. \n" +
-                                 "Мои основные корпуса: 4 и 6 \n" +
-                                 "Хочу подружиться с людьми из каждого института! Почти всегда меня можно встретить с улыбкой на лице)" + "\n" +
-                                 "А ещё я очень люблю обниматься! \n" +
-                                 "Количество лайков: " + await dbService.GetLikesCount("mosinisom"),
-                        // replyMarkup: inlineKeyboardMarkup,
-                        cancellationToken: default);
+                    else
+                    {
+                        await botClient.SendTextMessageAsync(
+                            chatId: message.Chat.Id,
+                            text: "Саша Мосин, 3 курс ИМИТиФ, Прикладная информатика в юриспруденции. \n" +
+                                     "Мои основные корпуса: 4 и 6 \n" +
+                                     "Хочу подружиться с людьми из каждого института! Почти всегда меня можно встретить с улыбкой на лице)" + "\n" +
+                                     "А ещё я очень люблю обниматься! \n" +
+                                     "Количество лайков: " + await dbService.GetLikesCount("mosinisom") + "\n" + "\n" +
+                                        "ЗДЕСЬ ДОЛЖНО БЫТЬ ФОТО, НО ПОЧЕМУ-ТО ПУСТО :( \n",
+                            cancellationToken: default);
+                    }
                 }
-                else
+                catch (Exception ex)
                 {
-                    await botClient.SendTextMessageAsync(
-                        chatId: message.Chat.Id,
-                        text: "Саша Мосин, 3 курс ИМИТиФ, Прикладная информатика в юриспруденции. \n" +
-                                 "Мои основные корпуса: 4 и 6 \n" +
-                                 "Хочу подружиться с людьми из каждого института! Почти всегда меня можно встретить с улыбкой на лице)" + "\n" +
-                                 "А ещё я очень люблю обниматься! \n" +
-                                 "Количество лайков: " + await dbService.GetLikesCount("mosinisom") + "\n" + "\n" +
-                                    "ТУТ ДОЛЖНО БЫТЬ ФОТО, НО ЕГО НЕТ :( \n",
-                        // replyMarkup: inlineKeyboardMarkup,
-                        cancellationToken: default);
+                    _log.LogError(ex, "Error when sending message for user {Username}", message.Chat.Id);
                 }
 
 
@@ -509,10 +532,10 @@ public class AppLogicService
                     text: "Я умею:\n" +
                           "/help - показать это сообщение\n" +
                           "/start - заполнить анкету заново (фото профиля изменить можно в любой момент, просто отправив его в чат)\n" +
-                          "/моилайки - показать количество лайков, которые вы получили\n" +
-                          "/мойпрофиль - показать вашу анкету\n" +
-                          "/жалоба ник_пользователя - отправить жалобу на пользователя\n" +
-                          "/далее - показать другие анкеты\n",
+                          "/mylikes - показать количество лайков, которые вы получили\n" +
+                          "/myprofile - показать вашу анкету\n" +
+                          "/complain ник_пользователя - отправить жалобу на пользователя\n" +
+                          "/next - показать другие анкеты\n",
                     cancellationToken: default);
                 _log.LogInformation("User {Username} got help message", username);
                 break;
@@ -566,23 +589,23 @@ public class AppLogicService
                     text: "Вы разбанили пользователя с ником " + args[0],
                     cancellationToken: default);
                 break;
-            case "/моилайки":
+            case "/mylikes":
                 int likesCount = await dbService.GetLikesCount(message.Chat.Id);
                 await botClient.SendTextMessageAsync(
                     chatId: message.Chat.Id,
                     text: "Количество лайков: " + likesCount,
                     cancellationToken: default);
                 break;
-            case "/лайкну":
+            case "/likehim":
                 _log.LogInformation("User {Username} liked {Username2}", username, args[0]);
                 if (username == args[0])
                     return;
                 await Like(message.Chat.Id, args[0], dbService, botClient);
-                inlineKeyboardMarkup = new(new[]
+                InlineKeyboardMarkup inlineKeyboardMarkup = new(new[]
                 {
                     new[]
                     {
-                        InlineKeyboardButton.WithCallbackData("Другие анкеты", "/далее"),
+                        InlineKeyboardButton.WithCallbackData("Другие анкеты", "/next"),
                     }
                 });
                 await botClient.SendTextMessageAsync(
@@ -591,7 +614,7 @@ public class AppLogicService
                     replyMarkup: inlineKeyboardMarkup,
                     cancellationToken: default);
                 break;
-            case "/мойпрофиль":
+            case "/myprofile":
                 Students? student = await dbService.GetStudentByChatId(message.Chat.Id);
                 if (student == null)
                     return;
@@ -615,7 +638,6 @@ public class AppLogicService
                     await AddStudentInstitute(message.Chat.Id, institute_id, dbService);
                 }
                 break;
-
             case "/message":
                 if (username == args[0])
                     return;
@@ -628,7 +650,7 @@ public class AppLogicService
                     text: "Введите сообщение для выбранного пользователя:",
                     cancellationToken: default);
                 break;
-            case "/далее":
+            case "/next":
                 state = await GetState(message.Chat.Id, dbService);
                 if (state.State != (int)stateEnum.default_state)
                     return;
@@ -650,19 +672,43 @@ public class AppLogicService
                     text: "Сообщение всем отправлено!",
                     cancellationToken: default);
                 break;
-            case "/профиль":
+            case "/profile":
                 await SendProfile(message.Chat.Id, args[0], botClient, dbService);
                 break;
-            case "/жалоба":
+            case "/complain":
+                if(args.Length == 0)
+                {
+                    await botClient.SendTextMessageAsync(
+                        chatId: message.Chat.Id,
+                        text: "Вы не указали пользователя, на которого хотите пожаловаться!",
+                        cancellationToken: default);
+                    return;
+                }
+
                 _log.LogInformation("User {Username} reported {Username2}", username, args[0]);
                 if (username == args[0])
+                {
+                    await botClient.SendTextMessageAsync(
+                        chatId: message.Chat.Id,
+                        text: "Ну зачем жаловаться на самого себя? :С",
+                        cancellationToken: default);
                     return;
+                }
+
+                if (args[0] == "mosinisom")
+                {
+                    await botClient.SendTextMessageAsync(
+                        chatId: message.Chat.Id,
+                        text: "Вы не можете пожаловаться на Сашу Мосина! Если Вам от него что-то нужно, просто напишите ему сообщение :)",
+                        cancellationToken: default);
+                    return;
+                }
 
                 inlineKeyboardMarkup = new(new[]
                 {
                     new[]
                     {
-                        InlineKeyboardButton.WithCallbackData("Другие анкеты", "/далее"),
+                        InlineKeyboardButton.WithCallbackData("Другие анкеты", "/next"),
                     }
                 });
                 await SendMessageByUsername("mosinisom", "Жалоба на пользователя @" + args[0] + ":\n от @" + username, botClient, dbService);
@@ -684,7 +730,7 @@ public class AppLogicService
                 {
                     new[]
                     {
-                        InlineKeyboardButton.WithCallbackData("анкеты", "/далее"),
+                        InlineKeyboardButton.WithCallbackData("анкеты", "/next"),
                     }
                 });
                 await botClient.SendTextMessageAsync(
@@ -839,7 +885,7 @@ public class AppLogicService
                 {
                     await botClient.SendTextMessageAsync(
                         chatId: message.Chat.Id,
-                        text: "Курс должен быть от 1 до 6. Попробуйте еще раз:",
+                        text: "Курс должен быть от 1 до 6 (есть шанс, что у вас не так). Попробуйте еще раз:",
                         cancellationToken: default);
                 }
                 break;
@@ -849,7 +895,8 @@ public class AppLogicService
                 await SetState(message.Chat.Id, (int)stateEnum.waiting_for_student_photo, "", dbService);
                 await botClient.SendTextMessageAsync(
                     chatId: message.Chat.Id,
-                    text: "Пришлите фото для анкеты:",
+                    text: "Пришлите фото для анкеты:" + "\n" +
+                          "Просьба использовать реальное фото, где видно Ваше лицо, иначе теряется смысл Вашей анкеты.",
                     cancellationToken: default);
                 break;
 
@@ -861,15 +908,16 @@ public class AppLogicService
 
                 await botClient.SendTextMessageAsync(
                     chatId: message.Chat.Id,
-                    text: "Спасибо за заполнение анкеты! Вы всегда можете полюбоваться ей через \"/мойпрофиль\", заполнить заново командой \"/start\". \n"
-                        + "Список команд \"/help\".",
+                    text: "Спасибо за заполнение анкеты! Вы всегда можете полюбоваться ей через \"/myprofile\", заполнить заново командой \"/start\". \n"
+                        + "Список команд \"/help\"."
+                        + "\n\n А если захотите закрыть свою анкету, напишите Саше Мосину (квест еще тот, если у Вас нет его контактов)",
                     cancellationToken: default);
 
                 inlineKeyboardMarkup = new(new[]
                 {
                     new[]
                     {
-                        InlineKeyboardButton.WithCallbackData("Смотреть анкеты", "/далее"),
+                        InlineKeyboardButton.WithCallbackData("Смотреть анкеты", "/next"),
                     }
                 });
 
@@ -898,7 +946,7 @@ public class AppLogicService
                 {
                     new[]
                     {
-                        InlineKeyboardButton.WithCallbackData("Смотреть дальше", "/далее"),
+                        InlineKeyboardButton.WithCallbackData("Смотреть дальше", "/next"),
                     }
                 });
 
