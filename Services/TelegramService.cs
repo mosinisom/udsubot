@@ -132,7 +132,7 @@ class TelegramService
             {
                 new[]
                 {
-                    InlineKeyboardButton.WithCallbackData("Да!!!", "/далее"),
+                    InlineKeyboardButton.WithCallbackData("Да!!!", "/next"),
                 }
             });
 
